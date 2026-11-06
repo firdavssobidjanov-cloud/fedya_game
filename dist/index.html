@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="./icons/logo.svg" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#08090d" />
+  <meta name="description" content="GAME ZONE - The Ultimate 100% Offline Gaming Hub with 25+ Playable Mini Games" />
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="GAME ZONE" />
+  <title>GAME ZONE — Ultimate Offline Arcade</title>
+  <script type="module" crossorigin src="./assets/index-ClEvnQq6.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-C0_UvOHN.css">
+</head>
+
+<body
+  class="bg-[#08090d] text-slate-100 min-h-screen selection:bg-purple-500 selection:text-white overflow-x-hidden antialiased">
+  <div id="root"></div>
+  <script>
+    // Register Offline Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => {
+            console.log('[GAME ZONE SW] Registered successfully with scope:', reg.scope);
+          })
+          .catch(err => {
+            console.warn('[GAME ZONE SW] Registration failed:', err);
+          });
+      });
+    }
+  </script>
+</body>
+
+</html>
