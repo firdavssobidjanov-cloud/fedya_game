@@ -2,6 +2,7 @@
 // 10,000 km Worldwide Sync with Cloud Database and Telegram Notifications
 
 import { getCurrentUser } from './auth';
+import { getStoredProfile } from './storage';
 import { sendTelegramAlert, getCloudDbConfig } from './cloudSync';
 
 export interface ReactionRecord {
@@ -11,6 +12,7 @@ export interface ReactionRecord {
   userId: string;
   username: string;
   email: string;
+  totalGamesPlayed: number;
   type: 'like' | 'dislike';
   timestamp: number;
 }
@@ -86,9 +88,12 @@ export function setGameReaction(
   type: 'like' | 'dislike'
 ): ReactionStats {
   const currentUser = getCurrentUser();
+  const profile = getStoredProfile();
+
   const userKey = currentUser ? currentUser.email : 'guest_device';
-  const username = currentUser ? currentUser.username : 'Mehmon (Guest)';
-  const email = currentUser ? currentUser.email : 'Ro\'yxatdan o\'tmagan mehmon';
+  const username = currentUser ? currentUser.username : (profile.username || 'Mehmon (Guest)');
+  const email = currentUser ? currentUser.email : 'Akkountsiz mehmon';
+  const totalGamesPlayed = currentUser ? (currentUser.totalGamesPlayed || 0) : (profile.totalGamesPlayed || 0);
   const userId = currentUser ? currentUser.id : 'guest_' + Date.now();
 
   const map = getUserReactionsMap();
@@ -111,6 +116,7 @@ export function setGameReaction(
       userId,
       username,
       email,
+      totalGamesPlayed,
       type,
       timestamp: Date.now(),
     };
@@ -118,12 +124,14 @@ export function setGameReaction(
 
     // 1. Send instant Telegram alert (Reaches Firdavs 10,000 km away!)
     const emoji = type === 'like' ? '👍' : '👎';
-    const label = type === 'like' ? 'LAYK BOSDI' : 'DISLAYK BOSDI';
+    const label = type === 'like' ? 'LAYK BOSILDI' : 'DISLAYK BOSILDI';
     sendTelegramAlert(
       `${emoji} <b>O'yinga Yangi ${label}!</b>\n\n` +
       `🎮 <b>O'yin:</b> <code>${gameTitle}</code>\n` +
-      `👤 <b>Kim:</b> <b>${username}</b> (${email})\n` +
-      `⭐ <b>Reaksiya:</b> ${emoji} ${type.toUpperCase()}\n` +
+      `👤 <b>O'yinchi (Ismi):</b> <b>${username}</b>\n` +
+      `📧 <b>Gmail (Email):</b> <code>${email}</code>\n` +
+      `🎯 <b>O'ynagan o'yinlari:</b> <b>${totalGamesPlayed} ta o'yin o'ynagan</b>\n` +
+      `⭐ <b>Reaksiya turi:</b> ${emoji} ${type.toUpperCase()}\n` +
       `🕒 <b>Vaqti:</b> ${new Date().toLocaleString()}`
     );
 
@@ -165,7 +173,6 @@ export async function pullCloudReactions(): Promise<ReactionRecord[]> {
       if (data && typeof data === 'object') {
         const cloudReactions: ReactionRecord[] = Object.values(data);
         if (cloudReactions.length > 0) {
-          // Sort newest first
           cloudReactions.sort((a, b) => b.timestamp - a.timestamp);
           saveAllReactions(cloudReactions);
           return cloudReactions;

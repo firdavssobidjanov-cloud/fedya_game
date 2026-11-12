@@ -77,7 +77,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
   const [unreadNotifs, setUnreadNotifs] = useState<number>(() => getUnreadReactionsCount());
   const [reactionFilter, setReactionFilter] = useState<'all' | 'like' | 'dislike'>('all');
   const [searchUserQuery, setSearchUserQuery] = useState('');
-  
+
   // Cloud & Telegram Settings
   const [telegramSettings, setTelegramSettings] = useState<TelegramConfig>(() => getTelegramConfig());
   const [cloudDbSettings, setCloudDbSettings] = useState<CloudDatabaseConfig>(() => getCloudDbConfig());
@@ -337,11 +337,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                   sounds.playClick();
                   setActiveTab('overview');
                 }}
-                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all ${
-                  activeTab === 'overview'
+                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'overview'
                     ? 'border-amber-400 text-amber-300 bg-amber-500/10'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 <Activity className="w-4 h-4" />
                 <span>Jonli Tahlil</span>
@@ -349,11 +348,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
 
               <button
                 onClick={handleOpenReactionsTab}
-                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all relative ${
-                  activeTab === 'reactions'
+                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all relative ${activeTab === 'reactions'
                     ? 'border-amber-400 text-amber-300 bg-amber-500/10'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 <Bell className="w-4 h-4 text-pink-400" />
                 <span>Xabarlar & Reaksiyalar ({reactionsList.length})</span>
@@ -367,11 +365,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                   sounds.playClick();
                   setActiveTab('users');
                 }}
-                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all ${
-                  activeTab === 'users'
+                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'users'
                     ? 'border-amber-400 text-amber-300 bg-amber-500/10'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 <Users className="w-4 h-4" />
                 <span>Foydalanuvchilar ({analytics.users.length})</span>
@@ -382,11 +379,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                   sounds.playClick();
                   setActiveTab('database');
                 }}
-                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all ${
-                  activeTab === 'database'
+                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === 'database'
                     ? 'border-amber-400 text-amber-300 bg-amber-500/10'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 <Cloud className="w-4 h-4" />
                 <span>Telegram & Bulutli Baza</span>
@@ -556,32 +552,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                     <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs">
                       <button
                         onClick={() => setReactionFilter('all')}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                          reactionFilter === 'all'
+                        className={`px-3 py-1.5 rounded-lg font-bold transition-all ${reactionFilter === 'all'
                             ? 'bg-purple-600 text-white'
                             : 'text-slate-400 hover:text-white'
-                        }`}
+                          }`}
                       >
                         Barchasi ({reactionsList.length})
                       </button>
                       <button
                         onClick={() => setReactionFilter('like')}
-                        className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
-                          reactionFilter === 'like'
+                        className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${reactionFilter === 'like'
                             ? 'bg-emerald-600 text-white'
                             : 'text-slate-400 hover:text-emerald-400'
-                        }`}
+                          }`}
                       >
                         <ThumbsUp className="w-3 h-3" />
                         <span>Layklar ({totalLikes})</span>
                       </button>
                       <button
                         onClick={() => setReactionFilter('dislike')}
-                        className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
-                          reactionFilter === 'dislike'
+                        className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${reactionFilter === 'dislike'
                             ? 'bg-rose-600 text-white'
                             : 'text-slate-400 hover:text-rose-400'
-                        }`}
+                          }`}
                       >
                         <ThumbsDown className="w-3 h-3" />
                         <span>Dislayklar ({totalDislikes})</span>
@@ -603,11 +596,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                         >
                           <div className="flex items-center gap-3">
                             <div
-                              className={`p-2 rounded-xl flex items-center justify-center ${
-                                item.type === 'like'
+                              className={`p-2 rounded-xl flex items-center justify-center ${item.type === 'like'
                                   ? 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-400'
                                   : 'bg-rose-950/80 border border-rose-500/50 text-rose-400'
-                              }`}
+                                }`}
                             >
                               {item.type === 'like' ? (
                                 <ThumbsUp className="w-4 h-4" />
@@ -617,20 +609,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                             </div>
 
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
                                 <span className="font-bold text-white text-sm">
                                   {item.username}
                                 </span>
-                                <span className="text-[11px] font-mono text-slate-400">
-                                  ({item.email})
+                                <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-[11px] font-mono text-cyan-300">
+                                  📧 {item.email}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md bg-purple-950/60 border border-purple-500/40 text-[11px] font-mono text-purple-300 font-bold">
+                                  🎯 {item.totalGamesPlayed || 0} ta o'yin o'ynagan
                                 </span>
                               </div>
 
                               <p className="text-slate-300 mt-0.5">
                                 <span
-                                  className={`font-bold mr-1.5 ${
-                                    item.type === 'like' ? 'text-emerald-400' : 'text-rose-400'
-                                  }`}
+                                  className={`font-bold mr-1.5 ${item.type === 'like' ? 'text-emerald-400' : 'text-rose-400'
+                                    }`}
                                 >
                                   {item.type === 'like' ? '👍 Layk bosdi' : '👎 Dislayk bosdi'}
                                 </span>
@@ -741,11 +735,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                                         <button
                                           onClick={() => handleToggleBlock(u.id)}
                                           title={u.isBlocked ? 'Blokdan chiqarish' : 'Bloklash'}
-                                          className={`p-1.5 rounded-lg border transition-colors ${
-                                            u.isBlocked
+                                          className={`p-1.5 rounded-lg border transition-colors ${u.isBlocked
                                               ? 'bg-amber-950/60 border-amber-500/50 text-amber-300'
                                               : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-amber-400'
-                                          }`}
+                                            }`}
                                         >
                                           <Ban className="w-3.5 h-3.5" />
                                         </button>

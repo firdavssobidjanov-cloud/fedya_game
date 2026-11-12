@@ -203,7 +203,8 @@ export async function syncNewUserToCloud(user: AppUser): Promise<void> {
     `👤 <b>Yangi Foydalanuvchi Ro'yxatdan O'tdi!</b>\n\n` +
     `🎮 <b>Platforma:</b> GAME ZONE\n` +
     `👤 <b>Ismi (Nikneym):</b> <code>${user.username}</code>\n` +
-    `📧 <b>Email:</b> <code>${user.email}</code>\n` +
+    `📧 <b>Gmail (Email):</b> <code>${user.email}</code>\n` +
+    `🎯 <b>O'ynagan o'yinlari:</b> <b>${user.totalGamesPlayed || 0} ta o'yin</b>\n` +
     `🕒 <b>Vaqti:</b> ${new Date().toLocaleString()}\n\n` +
     `✅ Akkaunt muvaffaqiyatli yaratildi!`
   );
