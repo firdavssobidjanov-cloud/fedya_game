@@ -33,6 +33,7 @@ import {
   triggerGlobalCloudSync,
   pullCloudStats,
   pullCloudUsers,
+  logActivityToCloud,
 } from './lib/cloudSync';
 import { pullCloudReactions } from './lib/reactions';
 import { Language, getLangText } from './lib/translations';
@@ -125,6 +126,22 @@ export function App() {
     // Increment real global and user play analytics
     incrementTotalGamesPlayed(id);
     incrementUserGameCount();
+
+    const gameDef = GAMES_CATALOG.find((g) => g.id === id);
+    const gameTitle = gameDef
+      ? typeof gameDef.title === 'string'
+        ? gameDef.title
+        : gameDef.title[lang] || gameDef.title.uz || gameDef.title.en
+      : id;
+
+    logActivityToCloud({
+      type: 'play',
+      username: currentUser ? currentUser.username : (profile.username || 'Mehmon'),
+      email: currentUser ? currentUser.email : 'Akkountsiz mehmon',
+      totalGamesPlayed: currentUser ? (currentUser.totalGamesPlayed || 0) + 1 : (profile.totalGamesPlayed || 0) + 1,
+      details: `O'yin o'ynadi: ${gameTitle}`,
+    });
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

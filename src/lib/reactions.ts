@@ -1,9 +1,9 @@
 // Real-time Like / Dislike reactions and Admin Notifications for GAME ZONE
-// 10,000 km Worldwide Sync with Cloud Database and Telegram Notifications
+// 10,000 km Worldwide Live Cloud Sync & Telegram Notifications
 
 import { getCurrentUser } from './auth';
 import { getStoredProfile } from './storage';
-import { sendTelegramAlert, getCloudDbConfig } from './cloudSync';
+import { sendTelegramAlert, CLOUD_API_BASE, logActivityToCloud } from './cloudSync';
 
 export interface ReactionRecord {
   id: string;
@@ -24,9 +24,9 @@ export interface ReactionStats {
 }
 
 const STORAGE_KEYS = {
-  REACTIONS_LIST: 'game_zone_real_reactions_feed_v2',
-  REACTIONS_USER_MAP: 'game_zone_user_reactions_map_v2',
-  READ_NOTIFS_TIMESTAMP: 'game_zone_admin_read_notifs_ts_v2',
+  REACTIONS_LIST: 'game_zone_real_reactions_feed_v3',
+  REACTIONS_USER_MAP: 'game_zone_user_reactions_map_v3',
+  READ_NOTIFS_TIMESTAMP: 'game_zone_admin_read_notifs_ts_v3',
 };
 
 // Get all reaction records
@@ -135,8 +135,17 @@ export function setGameReaction(
       `🕒 <b>Vaqti:</b> ${new Date().toLocaleString()}`
     );
 
-    // 2. Cloud DB Sync
+    // 2. Push to live Global Cloud Database
     syncReactionToCloud(newRecord);
+
+    // 3. Log real-time activity
+    logActivityToCloud({
+      type: 'reaction',
+      username,
+      email,
+      totalGamesPlayed,
+      details: `${type === 'like' ? '👍 Layk' : '👎 Dislayk'} bosdi: ${gameTitle}`,
+    });
   }
 
   saveAllReactions(all);
@@ -145,38 +154,43 @@ export function setGameReaction(
   return getGameReactionStats(gameId);
 }
 
-// Cloud DB push
+// Push reaction to live Global Cloud Database
 async function syncReactionToCloud(record: ReactionRecord): Promise<void> {
-  const config = getCloudDbConfig();
-  if (!config.enabled || !config.databaseUrl) return;
-
   try {
-    const cleanBase = config.databaseUrl.replace(/\/$/, '');
-    await fetch(`${cleanBase}/reactions/${record.id}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record),
-    }).catch(() => {});
+    let cloudReactions: ReactionRecord[] = [];
+    const res = await fetch(`${CLOUD_API_BASE}/gamezone_reactions`);
+    if (res.ok) {
+      const data = await res.json().catch(() => []);
+      if (Array.isArray(data)) cloudReactions = data;
+    }
+
+    // Filter out previous reaction from same user on this game
+    cloudReactions = cloudReactions.filter(
+      (r) => !(r.gameId === record.gameId && (r.email === record.email || r.userId === record.userId))
+    );
+    cloudReactions.unshift(record);
+
+    // Keep latest 200 reactions
+    if (cloudReactions.length > 200) {
+      cloudReactions = cloudReactions.slice(0, 200);
+    }
+
+    await fetch(`${CLOUD_API_BASE}/gamezone_reactions`, {
+      method: 'POST',
+      body: JSON.stringify(cloudReactions),
+    });
   } catch (e) {}
 }
 
 // PULL ALL REACTIONS FROM CLOUD (FOR ADMIN PANEL ON ANY DEVICE)
 export async function pullCloudReactions(): Promise<ReactionRecord[]> {
-  const config = getCloudDbConfig();
-  if (!config.enabled || !config.databaseUrl) return getAllReactions();
-
   try {
-    const cleanBase = config.databaseUrl.replace(/\/$/, '');
-    const res = await fetch(`${cleanBase}/reactions.json`);
+    const res = await fetch(`${CLOUD_API_BASE}/gamezone_reactions`);
     if (res.ok) {
       const data = await res.json();
-      if (data && typeof data === 'object') {
-        const cloudReactions: ReactionRecord[] = Object.values(data);
-        if (cloudReactions.length > 0) {
-          cloudReactions.sort((a, b) => b.timestamp - a.timestamp);
-          saveAllReactions(cloudReactions);
-          return cloudReactions;
-        }
+      if (Array.isArray(data)) {
+        saveAllReactions(data);
+        return data;
       }
     }
   } catch (e) {}

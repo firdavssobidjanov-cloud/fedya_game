@@ -47,9 +47,12 @@ import {
   triggerGlobalCloudSync,
   pullCloudUsers,
   pullCloudStats,
+  pullCloudActivity,
+  getActivityList,
   TelegramConfig,
   CloudDatabaseConfig,
   AnalyticsSummary,
+  ActivityRecord,
 } from '../lib/cloudSync';
 import {
   getAllReactions,
@@ -74,6 +77,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'reactions' | 'database'>('overview');
   const [analytics, setAnalytics] = useState<AnalyticsSummary>(() => getAnalyticsSummary());
   const [reactionsList, setReactionsList] = useState<ReactionRecord[]>(() => getAllReactions());
+  const [activityList, setActivityList] = useState<ActivityRecord[]>(() => getActivityList());
   const [unreadNotifs, setUnreadNotifs] = useState<number>(() => getUnreadReactionsCount());
   const [reactionFilter, setReactionFilter] = useState<'all' | 'like' | 'dislike'>('all');
   const [searchUserQuery, setSearchUserQuery] = useState('');
@@ -90,21 +94,35 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
   const [adminInputPass, setAdminInputPass] = useState('');
   const [gateError, setGateError] = useState<string | null>(null);
 
+  const handleModalClose = () => {
+    if (typeof window !== 'undefined' && window.location.hash.toLowerCase() === '#admin') {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+    onClose();
+  };
+
   useEffect(() => {
     if (isOpen) {
       setIsAdmin(isCurrentUserAdmin());
       setAnalytics(getAnalyticsSummary());
       setReactionsList(getAllReactions());
+      setActivityList(getActivityList());
       setUnreadNotifs(getUnreadReactionsCount());
       setTelegramSettings(getTelegramConfig());
-      setCloudDbSettings(getCloudDbConfig());
       setGateError(null);
       setTestTgStatus(null);
 
-      // Auto-fetch latest cloud data from other phones
-      pullCloudUsers().then(() => setAnalytics(getAnalyticsSummary()));
-      pullCloudReactions().then((recs) => setReactionsList(recs));
-      pullCloudStats().then(() => setAnalytics(getAnalyticsSummary()));
+      // Auto-fetch latest cloud data from other phones immediately and poll every 3 seconds
+      const fetchAll = () => {
+        pullCloudUsers().then(() => setAnalytics(getAnalyticsSummary()));
+        pullCloudReactions().then((recs) => setReactionsList(recs));
+        pullCloudStats().then(() => setAnalytics(getAnalyticsSummary()));
+        pullCloudActivity().then((acts) => setActivityList(acts));
+      };
+
+      fetchAll();
+      const interval = setInterval(fetchAll, 3000);
+      return () => clearInterval(interval);
     }
   }, [isOpen]);
 
@@ -250,7 +268,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
             <button
               onClick={() => {
                 sounds.playClick();
-                onClose();
+                handleModalClose();
               }}
               className="p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             >
@@ -514,6 +532,80 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                     )}
                   </div>
 
+                  {/* Real-time Activity Stream (Who entered, registered, played) */}
+                  <div className="p-5 rounded-2xl bg-slate-900/70 border border-cyber-border space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-cyan-400" />
+                        <h2 className="text-sm font-bold text-white">Jonli Faollik Oqimi (Kim kirdi, kim o'ynadi)</h2>
+                      </div>
+                      <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-950 border border-cyan-500/40 text-cyan-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                        10 000 KM REAL-TIME
+                      </span>
+                    </div>
+
+                    {activityList.length === 0 ? (
+                      <div className="py-8 text-center text-slate-500 text-xs">
+                        Hozircha hech qanday harakat qayd etilmagan. Boshqa telefonlardan foydalanuvchilar kirishi yoki o'yin o'ynashi bilan bu yerda real vaqtda yangilanadi.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {activityList.slice(0, 20).map((act) => {
+                          let badgeColor = 'bg-blue-950/80 border-blue-500/40 text-blue-300';
+                          let badgeLabel = '👁 Tashrif';
+                          if (act.type === 'register') {
+                            badgeColor = 'bg-purple-950/80 border-purple-500/40 text-purple-300';
+                            badgeLabel = "👤 Ro'yxatdan o'tish";
+                          } else if (act.type === 'login') {
+                            badgeColor = 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300';
+                            badgeLabel = '🔑 Kirish';
+                          } else if (act.type === 'play') {
+                            badgeColor = 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300';
+                            badgeLabel = "🎮 O'yin";
+                          } else if (act.type === 'reaction') {
+                            badgeColor = 'bg-pink-950/80 border-pink-500/40 text-pink-300';
+                            badgeLabel = '⭐ Reaksiya';
+                          }
+
+                          return (
+                            <div
+                              key={act.id}
+                              className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs hover:border-slate-700 transition-colors"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${badgeColor}`}>
+                                  {badgeLabel}
+                                </span>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-slate-200">{act.username}</span>
+                                    {act.email && (
+                                      <span className="text-[11px] font-mono text-cyan-400">
+                                        📧 {act.email}
+                                      </span>
+                                    )}
+                                    {act.totalGamesPlayed > 0 && (
+                                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-bold">
+                                        🎯 {act.totalGamesPlayed} ta o'yin
+                                      </span>
+                                    )}
+                                  </div>
+                                  {act.details && (
+                                    <p className="text-[11px] text-slate-400 mt-0.5">{act.details}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-mono text-slate-500 whitespace-nowrap ml-2">
+                                {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Fast Action Buttons */}
                   <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button
@@ -709,7 +801,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                                       </div>
                                     </div>
                                   </td>
-                                  <td className="py-3 px-4 font-mono text-slate-400">{u.email}</td>
+                                  <td className="py-3 px-4">
+                                    <div className="font-mono text-cyan-300 font-semibold flex items-center gap-1.5">
+                                      <Mail className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                                      <span>{u.email}</span>
+                                    </div>
+                                  </td>
                                   <td className="py-3 px-4">
                                     {isRoot ? (
                                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 border border-amber-500/50 text-amber-300">
@@ -721,8 +818,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                                       </span>
                                     )}
                                   </td>
-                                  <td className="py-3 px-4 font-mono text-cyan-400 font-bold">
-                                    {u.totalGamesPlayed || 0}
+                                  <td className="py-3 px-4">
+                                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-cyan-950/80 border border-cyan-500/40 text-cyan-300">
+                                      🎯 {u.totalGamesPlayed || 0} ta
+                                    </span>
                                   </td>
                                   <td className="py-3 px-4 text-slate-400">
                                     {new Date(u.createdAt).toLocaleDateString()}
@@ -845,56 +944,44 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                     </div>
                   </div>
 
-                  {/* Cloud Database URL Card */}
-                  <div className="p-5 rounded-2xl bg-slate-900/60 border border-cyber-border space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Cloud className="w-5 h-5 text-cyan-400" />
-                      <h3 className="text-sm font-bold text-white">Firebase Realtime Database (REST API)</h3>
+                  {/* Global Cloud Database Status Card */}
+                  <div className="p-5 rounded-2xl bg-slate-900/60 border border-emerald-500/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Cloud className="w-5 h-5 text-emerald-400" />
+                        <h3 className="text-sm font-bold text-white">Global Bulutli Baza (10 000 km Real-time Sync)</h3>
+                      </div>
+                      <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 border border-emerald-500/50 text-emerald-300">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        100% FAOL & ULANGAN
+                      </span>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1">
-                        Bulutli Baza URL manzili
-                      </label>
-                      <input
-                        type="text"
-                        value={cloudDbSettings.databaseUrl}
-                        onChange={(e) =>
-                          setCloudDbSettings({ ...cloudDbSettings, databaseUrl: e.target.value })
-                        }
-                        placeholder="https://game-zone-fedya-default-rtdb.firebaseio.com"
-                        className="w-full px-3.5 py-2.5 bg-slate-950 border border-cyber-border rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500 transition-all"
-                      />
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        Ushbu baza orqali har xil telefonlardagi foydalanuvchilar va layklar real vaqtda birlashtiriladi.
+                    <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-1.5 text-xs">
+                      <p className="text-slate-300">
+                        Barcha telefonlar va kompyuterlar yagona global bulutli endpoint orqali real vaqtda bir-biriga bog'langan:
+                      </p>
+                      <p className="font-mono text-[11px] text-cyan-300 bg-slate-900 p-2 rounded-lg break-all">
+                        https://kvdb.io/WK7FLDbEdSEiqMTAbrHmtP
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        ✅ Kimdir boshqa telefonda saytga kirsa, ro'yxatdan o'tsa yoki layk bossa, ushbu umumiy bazaga yoziladi va sizning telefoningizdagi Admin Panelda darhol paydo bo'ladi.
                       </p>
                     </div>
 
-                    {isSavedNotice && (
-                      <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 text-xs">
-                        <CheckCircle className="w-4 h-4 text-emerald-400" />
-                        <span>Barcha sozlamalar muvaffaqiyatli saqlandi!</span>
-                      </div>
-                    )}
-
-                    <div className="pt-2 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={handleSaveSettings}
-                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-sm transition-all"
-                      >
-                        <Save className="w-4 h-4" />
-                        <span>Sozlamalarni Saqlash</span>
-                      </button>
-
+                    <div className="pt-1 flex items-center justify-between">
                       <button
                         type="button"
                         onClick={handleRefresh}
-                        className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center gap-2 transition-colors"
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all"
                       >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span>Hozir Sinxronlash</span>
+                        <RefreshCw className="w-4 h-4" />
+                        <span>Hozir Ma'lumotlarni Yangilash</span>
                       </button>
+
+                      <span className="text-[11px] text-slate-500">
+                        Oxirgi sinxronlash: {new Date(analytics.lastSyncTime).toLocaleTimeString()}
+                      </span>
                     </div>
                   </div>
                 </div>

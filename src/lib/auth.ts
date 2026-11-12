@@ -2,7 +2,13 @@
 // 100% Real users only. No dummy/fake/seeded accounts.
 // Admin: firdavssobidjanov@gmail.com
 
-import { syncNewUserToCloud } from './cloudSync';
+import {
+  syncNewUserToCloud,
+  syncUserUpdateToCloud,
+  removeUserFromCloud,
+  toggleBlockUserInCloud,
+  logActivityToCloud,
+} from './cloudSync';
 
 export interface AppUser {
   id: string;
@@ -193,6 +199,16 @@ export function loginUser(email: string, password: string): { success: boolean; 
   saveAllUsers(users);
   setCurrentUser(user);
 
+  // Sync login to cloud and log activity
+  syncUserUpdateToCloud(user);
+  logActivityToCloud({
+    type: 'login',
+    username: user.username,
+    email: user.email,
+    totalGamesPlayed: user.totalGamesPlayed || 0,
+    details: 'Tizimga muvaffaqiyatli kirdi',
+  });
+
   return { success: true, user };
 }
 
@@ -273,6 +289,9 @@ export function incrementUserGameCount(): void {
     allUsers[idx].totalGamesPlayed = current.totalGamesPlayed;
     saveAllUsers(allUsers);
   }
+
+  // Sync updated games played to Cloud Database so admin sees it instantly worldwide
+  syncUserUpdateToCloud(current);
 }
 
 // Admin management: Delete user
@@ -284,6 +303,7 @@ export function adminDeleteUser(userId: string): boolean {
 
   allUsers = allUsers.filter((u) => u.id !== userId);
   saveAllUsers(allUsers);
+  removeUserFromCloud(userId);
   return true;
 }
 
@@ -296,5 +316,6 @@ export function adminToggleBlockUser(userId: string): boolean {
 
   target.isBlocked = !target.isBlocked;
   saveAllUsers(allUsers);
+  toggleBlockUserInCloud(userId);
   return true;
 }
