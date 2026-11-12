@@ -3,7 +3,6 @@ import {
   X,
   Users,
   Gamepad2,
-  Trophy,
   Cloud,
   Shield,
   Download,
@@ -12,14 +11,24 @@ import {
   Ban,
   CheckCircle,
   RefreshCw,
-  ExternalLink,
   Save,
   Flame,
   Activity,
   Layers,
   Crown,
+  Lock,
+  Mail,
+  ArrowRight,
+  Eye,
 } from 'lucide-react';
-import { isCurrentUserAdmin, ADMIN_CREDENTIALS, adminDeleteUser, adminToggleBlockUser, AppUser } from '../lib/auth';
+import {
+  isCurrentUserAdmin,
+  verifyAndLoginAdmin,
+  ADMIN_CREDENTIALS,
+  adminDeleteUser,
+  adminToggleBlockUser,
+  AppUser,
+} from '../lib/auth';
 import {
   getAnalyticsSummary,
   exportUsersToCSV,
@@ -41,6 +50,7 @@ interface AdminPanelModalProps {
 }
 
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClose, lang }) => {
+  const [isAdmin, setIsAdmin] = useState(isCurrentUserAdmin());
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'database'>('overview');
   const [analytics, setAnalytics] = useState<AnalyticsSummary>(() => getAnalyticsSummary());
   const [searchUserQuery, setSearchUserQuery] = useState('');
@@ -48,16 +58,37 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
   const [isSavedNotice, setIsSavedNotice] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Secret Gate Login Form (Empty by default, manual input required)
+  const [adminInputEmail, setAdminInputEmail] = useState('');
+  const [adminInputPass, setAdminInputPass] = useState('');
+  const [gateError, setGateError] = useState<string | null>(null);
+
   useEffect(() => {
     if (isOpen) {
+      setIsAdmin(isCurrentUserAdmin());
       setAnalytics(getAnalyticsSummary());
       setFirebaseSettings(getFirebaseConfig());
+      setGateError(null);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const isAdmin = isCurrentUserAdmin();
+  const handleGateLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setGateError(null);
+
+    const res = verifyAndLoginAdmin(adminInputEmail, adminInputPass);
+    if (!res.success) {
+      sounds.playHit();
+      setGateError(res.error || 'Kirish taqiqlandi!');
+      return;
+    }
+
+    sounds.playWin();
+    setIsAdmin(true);
+    setAnalytics(getAnalyticsSummary());
+  };
 
   const handleRefresh = async () => {
     sounds.playClick();
@@ -92,7 +123,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
     triggerCloudSync();
   };
 
-  // Filter users by search query
   const filteredUsers = analytics.users.filter((u) => {
     const q = searchUserQuery.toLowerCase();
     return u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
@@ -115,26 +145,28 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black text-white tracking-wide">
-                  ADMIN BOSHQARUV PANELI
+                  MAXFIY ADMIN BOSHQARUV PANELI
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 border border-amber-500/50 text-amber-300">
-                  ROOT ADMIN
+                  ROOT
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Administrator: <span className="text-amber-300 font-mono">{ADMIN_CREDENTIALS.email}</span>
+                100% Haqiqiy (Real) Statistik Ma'lumotlar
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleRefresh}
-              title="Statistikani yangilash"
-              className="p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:text-white hover:border-slate-500 transition-all"
-            >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-cyan-400' : ''}`} />
-            </button>
+            {isAdmin && (
+              <button
+                onClick={handleRefresh}
+                title="Statistikani yangilash"
+                className="p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:text-white hover:border-slate-500 transition-all"
+              >
+                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-cyan-400' : ''}`} />
+              </button>
+            )}
             <button
               onClick={() => {
                 sounds.playClick();
@@ -147,22 +179,76 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
           </div>
         </div>
 
-        {/* Access Check */}
+        {/* SECRET GATE: If not yet authenticated as Admin, show manual secure login form */}
         {!isAdmin ? (
-          <div className="flex-1 p-8 flex flex-col items-center justify-center text-center">
-            <Shield className="w-16 h-16 text-red-500 mb-4 animate-bounce" />
-            <h2 className="text-xl font-bold text-white mb-2">Ruxsat Cheklangan!</h2>
-            <p className="text-sm text-slate-400 max-w-md mb-4">
-              Ushbu bo'lim faqat Bosh Administrator (<span className="text-amber-300 font-mono">{ADMIN_CREDENTIALS.email}</span>) uchun ochiq. Iltimos, administrator hisobi bilan kiring.
-            </p>
-            <button
-              onClick={onClose}
-              className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm shadow-md"
-            >
-              Tushundim
-            </button>
+          <div className="flex-1 p-6 flex flex-col items-center justify-center text-center overflow-y-auto">
+            <div className="w-full max-w-sm p-6 rounded-2xl bg-slate-950/90 border border-amber-500/30 shadow-2xl space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-950/60 border border-amber-500/50 flex items-center justify-center mx-auto text-amber-400">
+                <Lock className="w-6 h-6" />
+              </div>
+
+              <div>
+                <h2 className="text-base font-bold text-white tracking-wide">
+                  Xavfsiz Boshqaruv Markazi
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Administrator hisobingiz orqali tizimga kiring:
+                </p>
+              </div>
+
+              {gateError && (
+                <div className="p-2.5 rounded-xl bg-red-950/60 border border-red-500/50 text-red-300 text-xs">
+                  {gateError}
+                </div>
+              )}
+
+              <form onSubmit={handleGateLogin} className="space-y-3 text-left">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Admin Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type="email"
+                      required
+                      value={adminInputEmail}
+                      onChange={(e) => setAdminInputEmail(e.target.value)}
+                      placeholder="admin@email.com"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-cyber-border rounded-xl text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Admin Parol
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type="password"
+                      required
+                      value={adminInputPass}
+                      onChange={(e) => setAdminInputPass(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-cyber-border rounded-xl text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 mt-2 rounded-xl font-bold text-xs text-slate-950 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 shadow-md transition-all flex items-center justify-center gap-2 group"
+                >
+                  <span>Kirish (Authenticate)</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </form>
+            </div>
           </div>
         ) : (
+          /* AUTHENTICATED ADMIN DASHBOARD */
           <>
             {/* Nav Tabs */}
             <div className="flex border-b border-cyber-border/70 px-5 bg-slate-950/40 text-xs font-bold">
@@ -178,7 +264,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                 }`}
               >
                 <Activity className="w-4 h-4" />
-                <span>Umumiy Tahlil & Statistika</span>
+                <span>Haqiqiy Tahlil & Statistika</span>
               </button>
               <button
                 onClick={() => {
@@ -192,7 +278,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                 }`}
               >
                 <Users className="w-4 h-4" />
-                <span>Foydalanuvchilar Boshqaruvi ({analytics.users.length})</span>
+                <span>Real Foydalanuvchilar ({analytics.users.length})</span>
               </button>
               <button
                 onClick={() => {
@@ -214,9 +300,23 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
               {activeTab === 'overview' && (
                 <>
-                  {/* KPI Cards */}
+                  {/* Real KPI Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Card 1: Registered Users */}
+                    {/* Card 1: Real Unique Visitors */}
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-blue-950/40 to-slate-900/90 border border-blue-500/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-blue-300 uppercase tracking-wider">
+                          Saytga Kirgan Odamlar
+                        </span>
+                        <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400">
+                          <Eye className="w-5 h-5" />
+                        </div>
+                      </div>
+                      <div className="text-3xl font-black text-white">{analytics.totalUniqueVisitors}</div>
+                      <p className="text-[11px] text-slate-400 mt-1">Haqiqiy tashrif buyurgan qurilmalar</p>
+                    </div>
+
+                    {/* Card 2: Real Registered Users */}
                     <div className="p-4 rounded-xl bg-gradient-to-br from-purple-950/40 to-slate-900/90 border border-purple-500/30">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-purple-300 uppercase tracking-wider">
@@ -227,10 +327,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                         </div>
                       </div>
                       <div className="text-3xl font-black text-white">{analytics.totalRegisteredUsers}</div>
-                      <p className="text-[11px] text-slate-400 mt-1">Akkaunt yaratgan o'yinchilar</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Akkaunt ochgan real o'yinchilar</p>
                     </div>
 
-                    {/* Card 2: Total Plays */}
+                    {/* Card 3: Real Games Played */}
                     <div className="p-4 rounded-xl bg-gradient-to-br from-cyan-950/40 to-slate-900/90 border border-cyan-500/30">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
@@ -241,87 +341,74 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                         </div>
                       </div>
                       <div className="text-3xl font-black text-white">{analytics.totalGamesPlayed}</div>
-                      <p className="text-[11px] text-slate-400 mt-1">Jami o'ynalgan sessiyalar</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Haqiqiy o'yin sessiyalari</p>
                     </div>
 
-                    {/* Card 3: Total Games Catalog */}
+                    {/* Card 4: Platform Games */}
                     <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-950/40 to-slate-900/90 border border-emerald-500/30">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
-                          Platformadagi O'yinlar
+                          O'yinlar Soni
                         </span>
                         <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
                           <Layers className="w-5 h-5" />
                         </div>
                       </div>
                       <div className="text-3xl font-black text-white">{GAMES_CATALOG.length} ta</div>
-                      <p className="text-[11px] text-slate-400 mt-1">100% oflayn ishlaydigan</p>
-                    </div>
-
-                    {/* Card 4: Database Status */}
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-amber-950/40 to-slate-900/90 border border-amber-500/30">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">
-                          Sinxronizatsiya
-                        </span>
-                        <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
-                          <Cloud className="w-5 h-5" />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span className="text-lg font-bold text-white">
-                          {analytics.onlineStatus === 'online' ? 'Faol (Online)' : 'Oflayn Kesh'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-1">Firebase + Mahalliy xotira</p>
+                      <p className="text-[11px] text-slate-400 mt-1">100% oflayn o'yinlar</p>
                     </div>
                   </div>
 
-                  {/* Top Games Popularity Breakdown */}
+                  {/* Real Games Popularity Breakdown */}
                   <div className="p-5 rounded-2xl bg-slate-900/70 border border-cyber-border space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Flame className="w-5 h-5 text-orange-400" />
-                        <h2 className="text-sm font-bold text-white">Eng Ko'p O'ynalgan O'yinlar Reytingi</h2>
+                        <h2 className="text-sm font-bold text-white">Eng Ko'p O'ynalgan O'yinlar</h2>
                       </div>
-                      <span className="text-xs text-slate-400 font-mono">Real-time Stats</span>
+                      <span className="text-xs text-slate-400 font-mono">100% Haqiqiy Ma'lumot</span>
                     </div>
 
-                    <div className="space-y-3">
-                      {analytics.topGames.slice(0, 8).map((item, idx) => {
-                        const gameDef = GAMES_CATALOG.find((g) => g.id === item.gameId);
-                        const title = gameDef
-                          ? typeof gameDef.title === 'string'
-                            ? gameDef.title
-                            : gameDef.title[lang] || gameDef.title.uz || gameDef.title.en
-                          : item.gameId;
-                        const percentage = Math.min(
-                          100,
-                          Math.round((item.count / Math.max(1, analytics.totalGamesPlayed)) * 100)
-                        );
+                    {analytics.topGames.length === 0 ? (
+                      <div className="py-8 text-center text-slate-500 text-xs">
+                        Hali o'yin o'ynalmagan (Statistika toza 0 da turibdi). O'yinchilar o'yin o'ynashi bilan bu yerda real reyting paydo bo'ladi.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {analytics.topGames.map((item, idx) => {
+                          const gameDef = GAMES_CATALOG.find((g) => g.id === item.gameId);
+                          const title = gameDef
+                            ? typeof gameDef.title === 'string'
+                              ? gameDef.title
+                              : gameDef.title[lang] || gameDef.title.uz || gameDef.title.en
+                            : item.gameId;
+                          const percentage = Math.min(
+                            100,
+                            Math.round((item.count / Math.max(1, analytics.totalGamesPlayed)) * 100)
+                          );
 
-                        return (
-                          <div key={item.gameId} className="space-y-1">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-medium text-slate-200">
-                                <span className="text-slate-500 mr-2 font-mono">#{idx + 1}</span>
-                                {title}
-                              </span>
-                              <span className="font-mono text-cyan-400 font-bold">
-                                {item.count} marta ({percentage}%)
-                              </span>
+                          return (
+                            <div key={item.gameId} className="space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-medium text-slate-200">
+                                  <span className="text-slate-500 mr-2 font-mono">#{idx + 1}</span>
+                                  {title}
+                                </span>
+                                <span className="font-mono text-cyan-400 font-bold">
+                                  {item.count} marta ({percentage}%)
+                                </span>
+                              </div>
+                              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full transition-all duration-500"
+                                  style={{ width: `${Math.max(5, percentage)}%` }}
+                                />
+                              </div>
                             </div>
-                            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full transition-all duration-500"
-                                style={{ width: `${Math.max(8, percentage * 2.5)}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Fast Action Buttons */}
@@ -391,7 +478,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                           {filteredUsers.length === 0 ? (
                             <tr>
                               <td colSpan={6} className="py-8 text-center text-slate-500">
-                                Hech qanday foydalanuvchi topilmadi.
+                                Hozircha ro'yxatdan o'tgan foydalanuvchilar mavjud emas. Haqiqiy foydalanuvchilar ro'yxatdan o'tishi bilan shu yerda ko'rinadi.
                               </td>
                             </tr>
                           ) : (
@@ -474,7 +561,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                     <div>
                       <h3 className="font-bold text-white mb-1">Gibrid Bulutli Arxitektura</h3>
                       <p className="text-slate-300 leading-relaxed">
-                        GAME ZONE ma'lumotlari Firebase Firestore bulutli bazasi bilan sinxronlashadi. Foydalanuvchilar internet bor paytda ro'yxatdan o'tganda ma'lumotlar bulutga saqlanadi. Internet yo'q paytda esa barcha o'yinlar 100% oflayn keshda xatosiz ishlayveradi!
+                        Turli xil qurilmalardan kirgan foydalanuvchilar soni va o'yinlar Firebase Firestore orqali sinxronlashadi. Internet yo'q bo'lsa ham o'yinlar 100% oflayn ishlayveradi.
                       </p>
                     </div>
                   </div>
@@ -500,7 +587,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                           onChange={(e) =>
                             setFirebaseSettings({ ...firebaseSettings, projectId: e.target.value })
                           }
-                          placeholder="masalan: game-zone-fedya"
+                          placeholder="game-zone-fedya"
                           className="w-full px-3.5 py-2.5 bg-slate-950 border border-cyber-border rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500 transition-all"
                         />
                       </div>
@@ -518,9 +605,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                           placeholder="AIzaSy..."
                           className="w-full px-3.5 py-2.5 bg-slate-950 border border-cyber-border rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500 transition-all"
                         />
-                        <p className="text-[11px] text-slate-500 mt-1">
-                          API kaliti kiritilmasa, barcha ma'lumotlar avtomatik ravishda mahalliy xotirada 100% xavfsiz va tezkor saqlanadi.
-                        </p>
                       </div>
                     </div>
 

@@ -1,5 +1,6 @@
 // Authentication & User Management for GAME ZONE
-// Supports Admin (firdavssobidjanov@gmail.com) and regular players
+// 100% Real users only. No dummy/fake/seeded accounts.
+// Admin: firdavssobidjanov@gmail.com
 
 export interface AppUser {
   id: string;
@@ -22,66 +23,30 @@ export const ADMIN_CREDENTIALS = {
 
 const AUTH_STORAGE_KEYS = {
   CURRENT_USER: 'game_zone_current_user',
-  USERS_LIST: 'game_zone_registered_users',
+  USERS_LIST: 'game_zone_real_registered_users_v2',
+  USER_PASSWORDS: 'game_zone_real_passwords_v2',
+  VISITOR_ID: 'game_zone_device_visitor_id',
 };
 
-// Seed initial admin user in the users registry
-function getInitialUsers(): AppUser[] {
-  return [
-    {
-      id: 'admin-firdavs-root',
-      username: 'Firdavs (Admin)',
-      email: ADMIN_CREDENTIALS.email,
-      role: 'admin',
-      avatarId: 11, // Gold Champion avatar
-      createdAt: Date.now() - 86400000 * 7,
-      lastLoginAt: Date.now(),
-      totalGamesPlayed: 42,
-    },
-    {
-      id: 'user-demo-1',
-      username: 'CyberGamer99',
-      email: 'gamer99@gamezone.uz',
-      role: 'player',
-      avatarId: 0,
-      createdAt: Date.now() - 86400000 * 3,
-      lastLoginAt: Date.now() - 3600000 * 2,
-      totalGamesPlayed: 28,
-    },
-    {
-      id: 'user-demo-2',
-      username: 'NeonShadow',
-      email: 'neon.shadow@gmail.com',
-      role: 'player',
-      avatarId: 3,
-      createdAt: Date.now() - 86400000 * 2,
-      lastLoginAt: Date.now() - 3600000 * 8,
-      totalGamesPlayed: 15,
-    },
-    {
-      id: 'user-demo-3',
-      username: 'PixelMaster',
-      email: 'pixel.master@yahoo.com',
-      role: 'player',
-      avatarId: 2,
-      createdAt: Date.now() - 86400000 * 1,
-      lastLoginAt: Date.now() - 3600000 * 1,
-      totalGamesPlayed: 33,
-    },
-  ];
+// Clean legacy dummy data if found
+export function clearLegacyDummyData(): void {
+  try {
+    localStorage.removeItem('game_zone_registered_users');
+    localStorage.removeItem('game_zone_user_creds');
+  } catch (e) {}
 }
 
+// Get all REAL registered users (starts empty, only real users)
 export function getAllUsers(): AppUser[] {
+  clearLegacyDummyData();
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEYS.USERS_LIST);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {}
-  const initial = getInitialUsers();
-  saveAllUsers(initial);
-  return initial;
+  return [];
 }
 
 export function saveAllUsers(users: AppUser[]): void {
@@ -112,7 +77,7 @@ export function setCurrentUser(user: AppUser | null): void {
 export function isCurrentUserAdmin(): boolean {
   const user = getCurrentUser();
   if (!user) return false;
-  return user.email.toLowerCase() === ADMIN_CREDENTIALS.email.toLowerCase() || user.role === 'admin';
+  return user.email.toLowerCase() === ADMIN_CREDENTIALS.email.toLowerCase() && user.role === 'admin';
 }
 
 // Subscriptions
@@ -135,6 +100,60 @@ function notifyAuthSubscribers(user: AppUser | null) {
   });
 }
 
+// Passwords storage helper (strictly real passwords entered by real users)
+function getStoredPasswords(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEYS.USER_PASSWORDS);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return {};
+}
+
+function saveStoredPasswords(map: Record<string, string>): void {
+  try {
+    localStorage.setItem(AUTH_STORAGE_KEYS.USER_PASSWORDS, JSON.stringify(map));
+  } catch (e) {}
+}
+
+// Admin secret login
+export function verifyAndLoginAdmin(email: string, pass: string): { success: boolean; error?: string; user?: AppUser } {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPass = pass.trim();
+
+  if (cleanEmail !== ADMIN_CREDENTIALS.email.toLowerCase()) {
+    return { success: false, error: 'Bunday administrator hisobi mavjud emas.' };
+  }
+
+  if (cleanPass !== ADMIN_CREDENTIALS.password) {
+    return { success: false, error: 'Admin paroli noto\'g\'ri!' };
+  }
+
+  const allUsers = getAllUsers();
+  let admin = allUsers.find((u) => u.email.toLowerCase() === ADMIN_CREDENTIALS.email.toLowerCase());
+
+  if (!admin) {
+    admin = {
+      id: 'admin-firdavs-root',
+      username: 'Firdavs (Admin)',
+      email: ADMIN_CREDENTIALS.email,
+      role: 'admin',
+      avatarId: 11,
+      createdAt: Date.now(),
+      lastLoginAt: Date.now(),
+      totalGamesPlayed: 0,
+    };
+    allUsers.unshift(admin);
+    saveAllUsers(allUsers);
+  } else {
+    admin.lastLoginAt = Date.now();
+    admin.role = 'admin';
+    saveAllUsers(allUsers);
+  }
+
+  setCurrentUser(admin);
+  return { success: true, user: admin };
+}
+
 // Login
 export function loginUser(email: string, password: string): { success: boolean; error?: string; user?: AppUser } {
   const cleanEmail = email.trim().toLowerCase();
@@ -146,32 +165,7 @@ export function loginUser(email: string, password: string): { success: boolean; 
 
   // Check Admin Login
   if (cleanEmail === ADMIN_CREDENTIALS.email.toLowerCase()) {
-    if (cleanPass === ADMIN_CREDENTIALS.password) {
-      const allUsers = getAllUsers();
-      let admin = allUsers.find((u) => u.email.toLowerCase() === ADMIN_CREDENTIALS.email.toLowerCase());
-      if (!admin) {
-        admin = {
-          id: 'admin-firdavs-root',
-          username: ADMIN_CREDENTIALS.username,
-          email: ADMIN_CREDENTIALS.email,
-          role: 'admin',
-          avatarId: 11,
-          createdAt: Date.now(),
-          lastLoginAt: Date.now(),
-          totalGamesPlayed: 0,
-        };
-        allUsers.unshift(admin);
-        saveAllUsers(allUsers);
-      } else {
-        admin.lastLoginAt = Date.now();
-        admin.role = 'admin';
-        saveAllUsers(allUsers);
-      }
-      setCurrentUser(admin);
-      return { success: true, user: admin };
-    } else {
-      return { success: false, error: 'Admin paroli noto\'g\'ri kiritildi!' };
-    }
+    return verifyAndLoginAdmin(cleanEmail, cleanPass);
   }
 
   // Check Regular Users
@@ -179,14 +173,13 @@ export function loginUser(email: string, password: string): { success: boolean; 
   const user = users.find((u) => u.email.toLowerCase() === cleanEmail);
 
   if (!user) {
-    return { success: false, error: 'Bu email bilan ro\'yxatdan o\'tgan foydalanuvchi topilmadi.' };
+    return { success: false, error: 'Ushbu email bilan ro\'yxatdan o\'tgan foydalanuvchi topilmadi.' };
   }
 
   if (user.isBlocked) {
     return { success: false, error: 'Ushbu hisob admin tomonidan bloklangan!' };
   }
 
-  // Check password from storage passwords mapping
   const passwordsMap = getStoredPasswords();
   const storedPass = passwordsMap[cleanEmail];
 
@@ -194,7 +187,6 @@ export function loginUser(email: string, password: string): { success: boolean; 
     return { success: false, error: 'Kiritilgan parol noto\'g\'ri!' };
   }
 
-  // Update last login
   user.lastLoginAt = Date.now();
   saveAllUsers(users);
   setCurrentUser(user);
@@ -202,7 +194,7 @@ export function loginUser(email: string, password: string): { success: boolean; 
   return { success: true, user };
 }
 
-// Register
+// Register (Real users only)
 export function registerUser(
   username: string,
   email: string,
@@ -227,11 +219,7 @@ export function registerUser(
 
   // If registering with admin email
   if (cleanEmail === ADMIN_CREDENTIALS.email.toLowerCase()) {
-    if (cleanPass === ADMIN_CREDENTIALS.password) {
-      return loginUser(cleanEmail, cleanPass);
-    } else {
-      return { success: false, error: 'Admin paroli noto\'g\'ri kiritildi!' };
-    }
+    return verifyAndLoginAdmin(cleanEmail, cleanPass);
   }
 
   const users = getAllUsers();
@@ -254,7 +242,7 @@ export function registerUser(
   users.push(newUser);
   saveAllUsers(users);
 
-  // Save password
+  // Save real password
   const passwordsMap = getStoredPasswords();
   passwordsMap[cleanEmail] = cleanPass;
   saveStoredPasswords(passwordsMap);
@@ -267,25 +255,6 @@ export function registerUser(
 // Logout
 export function logoutUser(): void {
   setCurrentUser(null);
-}
-
-// Passwords storage helper (local safe hash/storage)
-function getStoredPasswords(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem('game_zone_user_creds');
-    if (raw) return JSON.parse(raw);
-  } catch (e) {}
-  return {
-    'gamer99@gamezone.uz': 'gamer123',
-    'neon.shadow@gmail.com': 'neon2026',
-    'pixel.master@yahoo.com': 'pixel888',
-  };
-}
-
-function saveStoredPasswords(map: Record<string, string>): void {
-  try {
-    localStorage.setItem('game_zone_user_creds', JSON.stringify(map));
-  } catch (e) {}
 }
 
 // Update user game count
@@ -308,7 +277,7 @@ export function adminDeleteUser(userId: string): boolean {
   if (!isCurrentUserAdmin()) return false;
   let allUsers = getAllUsers();
   const target = allUsers.find((u) => u.id === userId);
-  if (!target || target.role === 'admin') return false; // Cannot delete admin
+  if (!target || target.role === 'admin') return false;
 
   allUsers = allUsers.filter((u) => u.id !== userId);
   saveAllUsers(allUsers);

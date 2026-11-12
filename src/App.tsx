@@ -25,7 +25,7 @@ import {
   incrementUserGameCount,
   AppUser,
 } from './lib/auth';
-import { incrementTotalGamesPlayed, triggerCloudSync } from './lib/cloudSync';
+import { incrementTotalGamesPlayed, trackRealVisit, triggerCloudSync } from './lib/cloudSync';
 import { Language, getLangText } from './lib/translations';
 import { sounds } from './lib/sounds';
 import { Trophy } from 'lucide-react';
@@ -50,8 +50,30 @@ export function App() {
   // Featured game
   const featuredGame = GAMES_CATALOG.find((g) => g.id === 'snake') || GAMES_CATALOG[0];
 
-  // Subscribe to auth state changes
+  // Track real visitor & listen for secret #admin entrance
   useEffect(() => {
+    // 1. Record real visitor visit
+    trackRealVisit();
+
+    // 2. Secret #admin URL hash listener
+    const checkAdminHash = () => {
+      if (window.location.hash.toLowerCase() === '#admin') {
+        setIsAdminPanelOpen(true);
+      }
+    };
+    checkAdminHash();
+    window.addEventListener('hashchange', checkAdminHash);
+
+    // 3. Secret keyboard shortcut: Ctrl+Shift+A opens secret admin gate
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setIsAdminPanelOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    // 4. Subscribe to auth changes
     const unsub = onAuthStateChanged((user) => {
       setCurrentUser(user);
       if (user) {
@@ -62,9 +84,14 @@ export function App() {
         }));
       }
     });
-    // Trigger initial background cloud sync
+
     triggerCloudSync();
-    return () => unsub();
+
+    return () => {
+      window.removeEventListener('hashchange', checkAdminHash);
+      window.removeEventListener('keydown', handleKeyDown);
+      unsub();
+    };
   }, []);
 
   // Language update
@@ -83,7 +110,7 @@ export function App() {
   const handlePlayGame = (id: string) => {
     setActiveGameId(id);
     setRecentGames(getRecentGames());
-    // Increment global and user play analytics
+    // Increment real global and user play analytics
     incrementTotalGamesPlayed(id);
     incrementUserGameCount();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -117,6 +144,13 @@ export function App() {
       username: user.username,
       avatarId: user.avatarId,
     }));
+  };
+
+  const handleCloseAdminModal = () => {
+    setIsAdminPanelOpen(false);
+    if (window.location.hash.toLowerCase() === '#admin') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   };
 
   // Achievement unlock listener
@@ -215,10 +249,10 @@ export function App() {
         onAuthSuccess={handleAuthSuccess}
       />
 
-      {/* Admin Panel Modal */}
+      {/* Secret Admin Panel Modal */}
       <AdminPanelModal
         isOpen={isAdminPanelOpen}
-        onClose={() => setIsAdminPanelOpen(false)}
+        onClose={handleCloseAdminModal}
         lang={lang}
       />
 

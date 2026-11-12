@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, User, ShieldCheck, Sparkles, Check, AlertCircle, ArrowRight, LogIn, UserPlus } from 'lucide-react';
+import { X, Lock, Mail, User, Sparkles, Check, AlertCircle, ArrowRight, LogIn, UserPlus } from 'lucide-react';
 import { AVATARS } from '../lib/storage';
-import { loginUser, registerUser, ADMIN_CREDENTIALS, AppUser } from '../lib/auth';
+import { loginUser, registerUser, AppUser } from '../lib/auth';
 import { Language } from '../lib/translations';
 import { sounds } from '../lib/sounds';
 
@@ -51,11 +51,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     sounds.playWin();
-    setSuccessMsg(res.user?.role === 'admin' ? 'Xush kelibsiz, Bosh Administrator!' : `Xush kelibsiz, ${res.user?.username}!`);
+    setSuccessMsg(`Xush kelibsiz, ${res.user?.username}!`);
     setTimeout(() => {
       onAuthSuccess(res.user!);
       onClose();
-    }, 900);
+    }, 700);
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
@@ -76,18 +76,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     sounds.playWin();
-    setSuccessMsg(`Tabriklaymiz! "${res.user?.username}" akkaunti muvaffaqiyatli yaratildi.`);
+    setSuccessMsg(`Tabriklaymiz! "${res.user?.username}" akkauntingiz muvaffaqiyatli yaratildi.`);
     setTimeout(() => {
       onAuthSuccess(res.user!);
       onClose();
-    }, 1000);
-  };
-
-  const fillAdminCredentials = () => {
-    setMode('login');
-    setLoginEmail(ADMIN_CREDENTIALS.email);
-    setLoginPassword(ADMIN_CREDENTIALS.password);
-    sounds.playClick();
+    }, 900);
   };
 
   return (
@@ -104,7 +97,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-white tracking-wide">
-                {mode === 'login' ? (lang === 'ru' ? 'Вход в аккаунт' : lang === 'uz' ? 'Tizimga kirish' : 'Sign In') : (lang === 'ru' ? 'Регистрация' : lang === 'uz' ? 'Ro\'yxatdan o\'tish' : 'Create Account')}
+                {mode === 'login'
+                  ? (lang === 'ru' ? 'Вход в аккаунт' : lang === 'uz' ? 'Tizimga kirish' : 'Sign In')
+                  : (lang === 'ru' ? 'Регистрация' : lang === 'uz' ? 'Ro\'yxatdan o\'tish' : 'Create Account')}
               </h2>
               <p className="text-xs text-slate-400">
                 {lang === 'ru' ? 'GAME ZONE платформасы' : lang === 'uz' ? 'GAME ZONE platformasi' : 'GAME ZONE Gaming Hub'}
@@ -207,24 +202,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
 
-              {/* Admin quick login button for owner */}
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={fillAdminCredentials}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-amber-950/30 border border-amber-500/30 hover:border-amber-400 text-amber-300 text-xs transition-colors group"
-                >
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-amber-400" />
-                    <span>Admin sifatida kirish (Firdavs)</span>
-                  </div>
-                  <span className="text-[10px] text-amber-400/80 group-hover:underline">Avto-to'ldirish</span>
-                </button>
-              </div>
-
               <button
                 type="submit"
-                className="w-full py-3 mt-2 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 shadow-neon-purple transition-all flex items-center justify-center gap-2 group"
+                className="w-full py-3 mt-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 shadow-neon-purple transition-all flex items-center justify-center gap-2 group"
               >
                 <span>{lang === 'ru' ? 'Войти' : lang === 'uz' ? 'Tizimga kirish' : 'Sign In'}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

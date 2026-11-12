@@ -9,9 +9,7 @@ import {
   Zap,
   Dices,
   Flame,
-  Crown,
   LogIn,
-  User,
 } from 'lucide-react';
 import { GameCategory } from '../lib/gamesCatalog';
 import { getLangText, Language } from '../lib/translations';
@@ -46,7 +44,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
   currentUser,
-  onOpenAdminPanel,
   onOpenAuthModal,
 }) => {
   const categories = [
@@ -65,8 +62,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onCloseMobile();
   };
 
-  const isAdmin = currentUser?.role === 'admin';
-
   return (
     <>
       {/* Mobile Backdrop */}
@@ -83,26 +78,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         <div className="space-y-5">
-          {/* Admin Panel button if Admin */}
-          {isAdmin && (
-            <div>
-              <button
-                onClick={() => {
-                  sounds.playClick();
-                  onOpenAdminPanel();
-                  onCloseMobile();
-                }}
-                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-yellow-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 hover:scale-[1.02] transition-all"
-              >
-                <div className="flex items-center gap-2">
-                  <Crown className="w-4 h-4" />
-                  <span>ADMIN PANEL</span>
-                </div>
-                <span className="text-[10px] bg-slate-950/20 px-1.5 py-0.5 rounded font-mono">ROOT</span>
-              </button>
-            </div>
-          )}
-
           {/* Categories Section */}
           <div>
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2">
@@ -182,7 +157,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-xs font-bold text-slate-200">GAME ZONE v1.1</span>
             </div>
             <p className="text-[11px] text-slate-400 leading-tight">
-              100% Client-Side PWA. Ro'yxatdan o'tish va Admin Panel qo'shilgan.
+              100% Client-Side PWA. Ro'yxatdan o'tish va Oflayn tizim.
             </p>
           </div>
         </div>

@@ -1,16 +1,11 @@
-// Cloud Sync & Analytics Engine for GAME ZONE
-// Connects with Firebase Firestore (REST API / Offline Cache)
-// Ensures 100% offline functionality while syncing global data when connected
+// Cloud Sync & Real-time Analytics Engine for GAME ZONE
+// 100% Real metrics only. No fake / seeded numbers. Starts at 0.
+// Connects with Firebase Firestore / Realtime DB / Local Device Analytics
 
 import { getAllUsers, AppUser } from './auth';
 
-export interface GameStatRecord {
-  gameId: string;
-  playsCount: number;
-  lastPlayedAt: number;
-}
-
 export interface AnalyticsSummary {
+  totalUniqueVisitors: number;
   totalRegisteredUsers: number;
   totalGamesPlayed: number;
   topGames: { gameId: string; count: number }[];
@@ -28,13 +23,22 @@ export interface FirebaseConfig {
 }
 
 const STORAGE_KEYS = {
-  GLOBAL_PLAYS_COUNT: 'game_zone_total_plays_count',
-  GAME_STATS_BREAKDOWN: 'game_zone_game_stats_breakdown',
+  REAL_PLAYS_COUNT: 'game_zone_real_plays_count_v2',
+  REAL_GAME_BREAKDOWN: 'game_zone_real_game_stats_v2',
+  REAL_VISITORS_COUNT: 'game_zone_real_unique_visitors_v2',
+  DEVICE_VISITED_FLAG: 'game_zone_has_counted_this_device_v2',
   FIREBASE_CONFIG: 'game_zone_firebase_config',
   LAST_SYNC: 'game_zone_last_sync_timestamp',
 };
 
-// Default fallback Firebase config
+// Purge legacy fake seed data if present
+export function purgeLegacyDummyData(): void {
+  try {
+    localStorage.removeItem('game_zone_total_plays_count');
+    localStorage.removeItem('game_zone_game_stats_breakdown');
+  } catch (e) {}
+}
+
 export function getFirebaseConfig(): FirebaseConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.FIREBASE_CONFIG);
@@ -54,63 +58,80 @@ export function saveFirebaseConfig(config: FirebaseConfig): void {
   } catch (e) {}
 }
 
-// Global Games Played Counter
-export function getTotalGamesPlayedCount(): number {
+// 1. Real Unique Visitors Counter (Starts at 0, only real devices)
+export function getRealVisitorsCount(): number {
+  purgeLegacyDummyData();
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.GLOBAL_PLAYS_COUNT);
+    const raw = localStorage.getItem(STORAGE_KEYS.REAL_VISITORS_COUNT);
     if (raw) {
       const val = parseInt(raw, 10);
       if (!isNaN(val)) return val;
     }
   } catch (e) {}
-  return 128; // Initial seed for demo realism
+  return 1; // At least this current device
+}
+
+// Track real visit when a user opens the site
+export function trackRealVisit(): void {
+  purgeLegacyDummyData();
+  try {
+    const alreadyCounted = localStorage.getItem(STORAGE_KEYS.DEVICE_VISITED_FLAG);
+    if (!alreadyCounted) {
+      // First time this device/browser visited
+      const current = getRealVisitorsCount();
+      const updated = current + 1;
+      localStorage.setItem(STORAGE_KEYS.REAL_VISITORS_COUNT, updated.toString());
+      localStorage.setItem(STORAGE_KEYS.DEVICE_VISITED_FLAG, 'true');
+      triggerCloudSync();
+    }
+  } catch (e) {}
+}
+
+// 2. Real Games Played Counter (Starts at 0, only real game sessions)
+export function getTotalGamesPlayedCount(): number {
+  purgeLegacyDummyData();
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.REAL_PLAYS_COUNT);
+    if (raw) {
+      const val = parseInt(raw, 10);
+      if (!isNaN(val)) return val;
+    }
+  } catch (e) {}
+  return 0; // Strictly starts at 0
 }
 
 export function incrementTotalGamesPlayed(gameId: string): void {
+  purgeLegacyDummyData();
   try {
     const current = getTotalGamesPlayedCount();
     const updated = current + 1;
-    localStorage.setItem(STORAGE_KEYS.GLOBAL_PLAYS_COUNT, updated.toString());
+    localStorage.setItem(STORAGE_KEYS.REAL_PLAYS_COUNT, updated.toString());
 
-    // Update game breakdown
+    // Update real game breakdown
     const breakdown = getGameStatsBreakdown();
     breakdown[gameId] = (breakdown[gameId] || 0) + 1;
-    localStorage.setItem(STORAGE_KEYS.GAME_STATS_BREAKDOWN, JSON.stringify(breakdown));
+    localStorage.setItem(STORAGE_KEYS.REAL_GAME_BREAKDOWN, JSON.stringify(breakdown));
 
-    // Try cloud sync in background
     triggerCloudSync();
   } catch (e) {}
 }
 
-// Game Stats Breakdown
+// 3. Real Game Stats Breakdown (Starts empty {})
 export function getGameStatsBreakdown(): Record<string, number> {
+  purgeLegacyDummyData();
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.GAME_STATS_BREAKDOWN);
+    const raw = localStorage.getItem(STORAGE_KEYS.REAL_GAME_BREAKDOWN);
     if (raw) return JSON.parse(raw);
   } catch (e) {}
-
-  // Initial seed breakdown
-  const seed: Record<string, number> = {
-    'car-racing': 34,
-    'snake': 29,
-    '2048': 24,
-    'brick-breaker': 18,
-    'doodle-jump': 15,
-    'flappy': 12,
-    'space-shooter': 11,
-    'minesweeper': 9,
-    'tic-tac-toe': 8,
-  };
-  try {
-    localStorage.setItem(STORAGE_KEYS.GAME_STATS_BREAKDOWN, JSON.stringify(seed));
-  } catch (e) {}
-  return seed;
+  return {}; // Clean empty initial breakdown
 }
 
 // Analytics Summary for Admin Panel
 export function getAnalyticsSummary(): AnalyticsSummary {
+  purgeLegacyDummyData();
   const users = getAllUsers();
   const totalGamesPlayed = getTotalGamesPlayedCount();
+  const totalUniqueVisitors = getRealVisitorsCount();
   const breakdown = getGameStatsBreakdown();
 
   const topGames = Object.entries(breakdown)
@@ -126,6 +147,7 @@ export function getAnalyticsSummary(): AnalyticsSummary {
   const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
 
   return {
+    totalUniqueVisitors,
     totalRegisteredUsers: users.length,
     totalGamesPlayed,
     topGames,
@@ -136,11 +158,11 @@ export function getAnalyticsSummary(): AnalyticsSummary {
   };
 }
 
-// Cloud synchronization with Firestore REST API
+// Cloud synchronization with Firebase Firestore REST API
 let isSyncing = false;
 export async function triggerCloudSync(): Promise<boolean> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return false; // Offline
+    return false;
   }
 
   const config = getFirebaseConfig();
@@ -152,23 +174,23 @@ export async function triggerCloudSync(): Promise<boolean> {
   isSyncing = true;
 
   try {
+    const visitors = getRealVisitorsCount();
     const totalPlays = getTotalGamesPlayedCount();
     const users = getAllUsers();
     const breakdown = getGameStatsBreakdown();
 
-    // Store sync timestamp
     localStorage.setItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
 
-    // If API key is configured, perform Firestore REST patch
     if (config.apiKey) {
-      const url = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/(default)/documents/game_analytics/global_stats?key=${config.apiKey}`;
+      const url = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/(default)/documents/game_analytics/real_stats?key=${config.apiKey}`;
       await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fields: {
+            totalUniqueVisitors: { integerValue: visitors.toString() },
             totalGamesPlayed: { integerValue: totalPlays.toString() },
-            totalUsersCount: { integerValue: users.length.toString() },
+            totalRegisteredUsers: { integerValue: users.length.toString() },
             lastUpdated: { timestampValue: new Date().toISOString() },
             gameBreakdown: { stringValue: JSON.stringify(breakdown) },
           },
@@ -184,7 +206,7 @@ export async function triggerCloudSync(): Promise<boolean> {
   }
 }
 
-// Export Registered Users to CSV (Excel format)
+// Export Real Users to CSV (Excel format)
 export function exportUsersToCSV(): void {
   const users = getAllUsers();
   const headers = ['ID', 'Username', 'Email', 'Role', 'Total Games Played', 'Created Date', 'Last Active', 'Status'];
@@ -205,7 +227,7 @@ export function exportUsersToCSV(): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute('download', `gamezone_registered_users_${new Date().toISOString().slice(0, 10)}.csv`);
+  link.setAttribute('download', `gamezone_real_users_${new Date().toISOString().slice(0, 10)}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

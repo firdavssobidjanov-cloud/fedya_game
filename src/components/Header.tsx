@@ -143,22 +143,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
 
-      {/* Right Controls: Audio, Fullscreen, Language, Admin Button & Profile */}
+      {/* Right Controls: Audio, Fullscreen, Language & Profile */}
       <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Admin Panel Direct Button (if logged in as admin) */}
-        {isAdmin && (
-          <button
-            onClick={() => {
-              sounds.playClick();
-              onOpenAdminPanel();
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-yellow-500 text-slate-950 font-black text-xs shadow-[0_0_20px_rgba(245,158,11,0.4)] animate-pulse hover:scale-105 transition-all"
-          >
-            <Crown className="w-4 h-4" />
-            <span className="hidden xs:inline">ADMIN PANEL</span>
-          </button>
-        )}
-
         {/* Sound FX Toggle */}
         <button
           onClick={toggleSound}
@@ -222,11 +208,7 @@ export const Header: React.FC<HeaderProps> = ({
                 sounds.playClick();
                 setShowUserDropdown(!showUserDropdown);
               }}
-              className={`flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-xl border transition-all ${
-                isAdmin
-                  ? 'bg-amber-950/60 border-amber-500/50 hover:border-amber-400'
-                  : 'bg-gradient-to-r from-purple-950/70 to-blue-950/70 border-purple-500/40 hover:border-cyan-400'
-              }`}
+              className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-xl border border-purple-500/40 bg-gradient-to-r from-purple-950/70 to-blue-950/70 hover:border-cyan-400 transition-all"
             >
               <span className="text-base">{avatar.emoji}</span>
               <span className="font-semibold text-xs text-slate-200 max-w-[80px] sm:max-w-[110px] truncate hidden xs:inline">
@@ -245,11 +227,6 @@ export const Header: React.FC<HeaderProps> = ({
                   <div className="px-3 py-2 border-b border-slate-800 mb-1">
                     <p className="font-bold text-white truncate">{displayName}</p>
                     <p className="text-[10px] text-slate-400 truncate font-mono">{currentUser.email}</p>
-                    {isAdmin && (
-                      <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950 border border-amber-500/40 text-amber-300">
-                        ADMIN
-                      </span>
-                    )}
                   </div>
 
                   {isAdmin && (
@@ -284,14 +261,14 @@ export const Header: React.FC<HeaderProps> = ({
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-red-400 hover:bg-red-950/40 transition-colors"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>Chiqish (Logout)</span>
+                    <span>Chiqish</span>
                   </button>
                 </div>
               </>
             )}
           </div>
         ) : (
-          /* Guest Mode: Login / Register Button */
+          /* Normal Clean Login / Register Button */
           <button
             onClick={() => {
               sounds.playClick();
