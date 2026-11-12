@@ -9,10 +9,14 @@ import {
   Zap,
   Dices,
   Flame,
+  Crown,
+  LogIn,
+  User,
 } from 'lucide-react';
 import { GameCategory } from '../lib/gamesCatalog';
 import { getLangText, Language } from '../lib/translations';
 import { sounds } from '../lib/sounds';
+import { AppUser } from '../lib/auth';
 
 export type FilterCategory = 'all' | 'favorites' | 'recent' | GameCategory;
 
@@ -26,6 +30,9 @@ interface SidebarProps {
   onRandomGame: () => void;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  currentUser: AppUser | null;
+  onOpenAdminPanel: () => void;
+  onOpenAuthModal: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -38,6 +45,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRandomGame,
   isOpenMobile,
   onCloseMobile,
+  currentUser,
+  onOpenAdminPanel,
+  onOpenAuthModal,
 }) => {
   const categories = [
     { id: 'all' as FilterCategory, labelKey: 'cat_all', icon: Gamepad2, count: totalGamesCount, color: 'text-cyan-400' },
@@ -55,6 +65,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onCloseMobile();
   };
 
+  const isAdmin = currentUser?.role === 'admin';
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -66,15 +78,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside
-        className={`fixed md:sticky top-[57px] left-0 h-[calc(100vh-57px)] w-64 bg-cyber-bg/95 md:bg-cyber-bg/60 backdrop-blur-md border-r border-cyber-border p-4 flex flex-col justify-between z-30 transition-transform duration-300 md:translate-x-0 ${
+        className={`fixed md:sticky top-[57px] left-0 h-[calc(100vh-57px)] w-64 bg-cyber-bg/95 md:bg-cyber-bg/60 backdrop-blur-md border-r border-cyber-border p-4 flex flex-col justify-between z-30 transition-transform duration-300 md:translate-x-0 overflow-y-auto ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="space-y-6">
+        <div className="space-y-5">
+          {/* Admin Panel button if Admin */}
+          {isAdmin && (
+            <div>
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  onOpenAdminPanel();
+                  onCloseMobile();
+                }}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-yellow-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 hover:scale-[1.02] transition-all"
+              >
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4" />
+                  <span>ADMIN PANEL</span>
+                </div>
+                <span className="text-[10px] bg-slate-950/20 px-1.5 py-0.5 rounded font-mono">ROOT</span>
+              </button>
+            </div>
+          )}
+
           {/* Categories Section */}
           <div>
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2">
-              Discover
+              Kategoriyalar
             </p>
             <nav className="space-y-1">
               {categories.map((cat) => {
@@ -113,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Surprise Me / Quick Play button */}
-          <div className="pt-2">
+          <div className="pt-1">
             <button
               onClick={() => {
                 sounds.playScore();
@@ -129,17 +161,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Footer info in sidebar */}
-        <div className="p-3 bg-cyber-card/80 border border-cyber-border rounded-xl">
-          <div className="flex items-center gap-2 mb-1">
-            <Flame className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-bold text-slate-200">GAME ZONE v1.0</span>
+        <div className="space-y-2 pt-4">
+          {!currentUser && (
+            <button
+              onClick={() => {
+                sounds.playClick();
+                onOpenAuthModal();
+                onCloseMobile();
+              }}
+              className="w-full py-2 px-3 rounded-xl bg-slate-900 border border-slate-700 hover:border-cyan-500 text-cyan-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Kirish / Ro'yxatdan o'tish</span>
+            </button>
+          )}
+
+          <div className="p-3 bg-cyber-card/80 border border-cyber-border rounded-xl">
+            <div className="flex items-center gap-2 mb-1">
+              <Flame className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-bold text-slate-200">GAME ZONE v1.1</span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-tight">
+              100% Client-Side PWA. Ro'yxatdan o'tish va Admin Panel qo'shilgan.
+            </p>
           </div>
-          <p className="text-[11px] text-slate-400 leading-tight">
-            100% Client-Side PWA. No Internet connection required.
-          </p>
         </div>
       </aside>
     </>
   );
 };
-

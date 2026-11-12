@@ -5,6 +5,8 @@ import { Sidebar, FilterCategory } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { GameRenderer } from './components/GameRenderer';
 import { ProfileModal } from './components/ProfileModal';
+import { AuthModal } from './components/AuthModal';
+import { AdminPanelModal } from './components/AdminPanelModal';
 import {
   getStoredProfile,
   getFavorites,
@@ -16,6 +18,14 @@ import {
   onAchievementUnlocked,
   Achievement,
 } from './lib/storage';
+import {
+  getCurrentUser,
+  onAuthStateChanged,
+  logoutUser,
+  incrementUserGameCount,
+  AppUser,
+} from './lib/auth';
+import { incrementTotalGamesPlayed, triggerCloudSync } from './lib/cloudSync';
 import { Language, getLangText } from './lib/translations';
 import { sounds } from './lib/sounds';
 import { Trophy } from 'lucide-react';
@@ -32,8 +42,30 @@ export function App() {
   const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState(false);
   const [achievementToast, setAchievementToast] = useState<Achievement | null>(null);
 
+  // Authentication & Admin state
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => getCurrentUser());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+
   // Featured game
   const featuredGame = GAMES_CATALOG.find((g) => g.id === 'snake') || GAMES_CATALOG[0];
+
+  // Subscribe to auth state changes
+  useEffect(() => {
+    const unsub = onAuthStateChanged((user) => {
+      setCurrentUser(user);
+      if (user) {
+        setProfile((prev) => ({
+          ...prev,
+          username: user.username,
+          avatarId: user.avatarId,
+        }));
+      }
+    });
+    // Trigger initial background cloud sync
+    triggerCloudSync();
+    return () => unsub();
+  }, []);
 
   // Language update
   const handleSetLang = (l: Language) => {
@@ -51,6 +83,9 @@ export function App() {
   const handlePlayGame = (id: string) => {
     setActiveGameId(id);
     setRecentGames(getRecentGames());
+    // Increment global and user play analytics
+    incrementTotalGamesPlayed(id);
+    incrementUserGameCount();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -64,6 +99,24 @@ export function App() {
   const handleRandomGame = () => {
     const randomGame = GAMES_CATALOG[Math.floor(Math.random() * GAMES_CATALOG.length)];
     handlePlayGame(randomGame.id);
+  };
+
+  // Logout handler
+  const handleLogout = () => {
+    sounds.playClick();
+    logoutUser();
+    setCurrentUser(null);
+    setProfile(getStoredProfile());
+  };
+
+  // Auth Success handler
+  const handleAuthSuccess = (user: AppUser) => {
+    setCurrentUser(user);
+    setProfile((prev) => ({
+      ...prev,
+      username: user.username,
+      avatarId: user.avatarId,
+    }));
   };
 
   // Achievement unlock listener
@@ -95,6 +148,10 @@ export function App() {
         onToggleSidebar={() => setIsSidebarOpenMobile((prev) => !prev)}
         activeGameId={activeGameId}
         onBackToHub={handleBackToHub}
+        currentUser={currentUser}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Container Layout */}
@@ -111,6 +168,9 @@ export function App() {
             onRandomGame={handleRandomGame}
             isOpenMobile={isSidebarOpenMobile}
             onCloseMobile={() => setIsSidebarOpenMobile(false)}
+            currentUser={currentUser}
+            onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
+            onOpenAuthModal={() => setIsAuthModalOpen(true)}
           />
         )}
 
@@ -138,12 +198,27 @@ export function App() {
         </main>
       </div>
 
-      {/* Profile Modal */}
+      {/* Player Profile Modal */}
       <ProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         profile={profile}
         onUpdateProfile={setProfile}
+        lang={lang}
+      />
+
+      {/* Auth / Registration Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        lang={lang}
+        onAuthSuccess={handleAuthSuccess}
+      />
+
+      {/* Admin Panel Modal */}
+      <AdminPanelModal
+        isOpen={isAdminPanelOpen}
+        onClose={() => setIsAdminPanelOpen(false)}
         lang={lang}
       />
 
