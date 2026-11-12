@@ -24,6 +24,9 @@ import {
   ThumbsDown,
   Bell,
   MessageSquare,
+  Send,
+  Smartphone,
+  ExternalLink,
 } from 'lucide-react';
 import {
   isCurrentUserAdmin,
@@ -36,14 +39,21 @@ import {
 import {
   getAnalyticsSummary,
   exportUsersToCSV,
-  getFirebaseConfig,
-  saveFirebaseConfig,
-  triggerCloudSync,
-  FirebaseConfig,
+  getTelegramConfig,
+  saveTelegramConfig,
+  sendTelegramAlert,
+  getCloudDbConfig,
+  saveCloudDbConfig,
+  triggerGlobalCloudSync,
+  pullCloudUsers,
+  pullCloudStats,
+  TelegramConfig,
+  CloudDatabaseConfig,
   AnalyticsSummary,
 } from '../lib/cloudSync';
 import {
   getAllReactions,
+  pullCloudReactions,
   ReactionRecord,
   getUnreadReactionsCount,
   markReactionsAsRead,
@@ -67,8 +77,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
   const [unreadNotifs, setUnreadNotifs] = useState<number>(() => getUnreadReactionsCount());
   const [reactionFilter, setReactionFilter] = useState<'all' | 'like' | 'dislike'>('all');
   const [searchUserQuery, setSearchUserQuery] = useState('');
-  const [firebaseSettings, setFirebaseSettings] = useState<FirebaseConfig>(() => getFirebaseConfig());
+  
+  // Cloud & Telegram Settings
+  const [telegramSettings, setTelegramSettings] = useState<TelegramConfig>(() => getTelegramConfig());
+  const [cloudDbSettings, setCloudDbSettings] = useState<CloudDatabaseConfig>(() => getCloudDbConfig());
   const [isSavedNotice, setIsSavedNotice] = useState(false);
+  const [testTgStatus, setTestTgStatus] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Secret Gate Login Form (Empty by default, manual input required)
@@ -82,8 +96,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
       setAnalytics(getAnalyticsSummary());
       setReactionsList(getAllReactions());
       setUnreadNotifs(getUnreadReactionsCount());
-      setFirebaseSettings(getFirebaseConfig());
+      setTelegramSettings(getTelegramConfig());
+      setCloudDbSettings(getCloudDbConfig());
       setGateError(null);
+      setTestTgStatus(null);
+
+      // Auto-fetch latest cloud data from other phones
+      pullCloudUsers().then(() => setAnalytics(getAnalyticsSummary()));
+      pullCloudReactions().then((recs) => setReactionsList(recs));
+      pullCloudStats().then(() => setAnalytics(getAnalyticsSummary()));
     }
   }, [isOpen]);
 
@@ -104,12 +125,20 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
     setIsAdmin(true);
     setAnalytics(getAnalyticsSummary());
     setReactionsList(getAllReactions());
+
+    pullCloudUsers().then(() => setAnalytics(getAnalyticsSummary()));
+    pullCloudReactions().then((recs) => setReactionsList(recs));
   };
 
   const handleRefresh = async () => {
     sounds.playClick();
     setIsSyncing(true);
-    await triggerCloudSync();
+    await Promise.all([
+      pullCloudUsers(),
+      pullCloudReactions(),
+      pullCloudStats(),
+      triggerGlobalCloudSync(),
+    ]);
     setAnalytics(getAnalyticsSummary());
     setReactionsList(getAllReactions());
     setTimeout(() => {
@@ -131,13 +160,31 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
     setAnalytics(getAnalyticsSummary());
   };
 
-  const handleSaveFirebase = (e: React.FormEvent) => {
+  const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     sounds.playWin();
-    saveFirebaseConfig(firebaseSettings);
+    saveTelegramConfig(telegramSettings);
+    saveCloudDbConfig(cloudDbSettings);
     setIsSavedNotice(true);
     setTimeout(() => setIsSavedNotice(false), 3000);
-    triggerCloudSync();
+    triggerGlobalCloudSync();
+  };
+
+  const handleTestTelegram = async () => {
+    sounds.playClick();
+    setTestTgStatus('Yuborilmoqda...');
+    const ok = await sendTelegramAlert(
+      `🔔 <b>GAME ZONE Test Xabarnomasi!</b>\n\n` +
+      `✅ Telegram xabarnoma tizimi muvaffaqiyatli ulandi!\n` +
+      `📱 Endi 10 000 km uzoqda bo'lsangiz ham, saytingizga kim kirsa, kim ro'yxatdan o'tsa va kim layk bossa — Telegramingizga darhol xabar keladi!`
+    );
+    if (ok) {
+      sounds.playWin();
+      setTestTgStatus('✅ Xabar Telegramingizga yuborildi! Botingizni tekshiring.');
+    } else {
+      sounds.playHit();
+      setTestTgStatus('❌ Xatolik: Bot Token yoki Chat ID noto\'g\'ri kiritilgan!');
+    }
   };
 
   const handleOpenReactionsTab = () => {
@@ -185,7 +232,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                100% Haqiqiy (Real) Statistik Ma'lumotlar & Xabarnomalar
+                10 000 km Masofaviy Jonli Statistika & Telegram Xabarnomalar
               </p>
             </div>
           </div>
@@ -297,7 +344,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                 }`}
               >
                 <Activity className="w-4 h-4" />
-                <span>Haqiqiy Tahlil</span>
+                <span>Jonli Tahlil</span>
               </button>
 
               <button
@@ -342,7 +389,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                 }`}
               >
                 <Cloud className="w-4 h-4" />
-                <span>Bulutli Baza</span>
+                <span>Telegram & Bulutli Baza</span>
               </button>
             </div>
 
@@ -364,7 +411,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                         </div>
                       </div>
                       <div className="text-3xl font-black text-white">{analytics.totalUniqueVisitors}</div>
-                      <p className="text-[11px] text-slate-400 mt-1">Haqiqiy tashrif buyurgan qurilmalar</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Dunyo bo'ylab haqiqiy qurilmalar</p>
                     </div>
 
                     {/* Card 2: Real Registered Users */}
@@ -647,7 +694,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                           {filteredUsers.length === 0 ? (
                             <tr>
                               <td colSpan={6} className="py-8 text-center text-slate-500">
-                                Hozircha ro'yxatdan o'tgan foydalanuvchilar mavjud emas. Haqiqiy foydalanuvchilar ro'yxatdan o'tishi bilan shu yerda ko'rinadi.
+                                Hozircha ro'yxatdan o'tgan foydalanuvchilar mavjud emas. Boshqa telefonlardan haqiqiy foydalanuvchilar ro'yxatdan o'tishi bilan shu yerda ko'rinadi.
                               </td>
                             </tr>
                           ) : (
@@ -723,64 +770,124 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                 </div>
               )}
 
-              {/* TAB 4: DATABASE */}
+              {/* TAB 4: TELEGRAM & DATABASE SETTINGS */}
               {activeTab === 'database' && (
                 <div className="space-y-5">
-                  <div className="p-4 rounded-xl bg-cyan-950/30 border border-cyan-500/30 text-xs text-cyan-300 flex items-start gap-3">
-                    <Cloud className="w-5 h-5 flex-shrink-0 text-cyan-400 mt-0.5" />
-                    <div>
-                      <h3 className="font-bold text-white mb-1">Gibrid Bulutli Arxitektura</h3>
-                      <p className="text-slate-300 leading-relaxed">
-                        Turli xil qurilmalardan kirgan foydalanuvchilar soni, o'yinlar va layk/dislayklar Firebase Firestore orqali sinxronlashadi. Internet yo'q bo'lsa ham o'yinlar 100% oflayn ishlayveradi.
-                      </p>
+                  {/* Telegram Integration Card */}
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-950/40 via-slate-900/90 to-cyan-950/40 border border-blue-500/40 shadow-xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-blue-600/20 text-blue-400">
+                          <Smartphone className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                            <span>10 000 KM Telegram Xabarnomalari</span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-950 border border-emerald-500/50 text-emerald-300 font-bold">
+                              JONLI XABAR
+                            </span>
+                          </h3>
+                          <p className="text-xs text-slate-400">
+                            Dunyoning istalgan joyidan kimdir ro'yxatdan o'tsa yoki layk bossa — Telegramingizga darhol push-xabar keladi!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block text-slate-300 font-medium mb-1">
+                          Telegram Bot Token
+                        </label>
+                        <input
+                          type="text"
+                          value={telegramSettings.botToken}
+                          onChange={(e) =>
+                            setTelegramSettings({ ...telegramSettings, botToken: e.target.value })
+                          }
+                          placeholder="masalan: 7481928374:AAH..."
+                          className="w-full px-3 py-2 bg-slate-950 border border-cyber-border rounded-xl font-mono text-slate-200 focus:outline-none focus:border-cyan-400 transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-300 font-medium mb-1">
+                          Telegram Chat ID
+                        </label>
+                        <input
+                          type="text"
+                          value={telegramSettings.chatId}
+                          onChange={(e) =>
+                            setTelegramSettings({ ...telegramSettings, chatId: e.target.value })
+                          }
+                          placeholder="masalan: 123456789"
+                          className="w-full px-3 py-2 bg-slate-950 border border-cyber-border rounded-xl font-mono text-slate-200 focus:outline-none focus:border-cyan-400 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* How to get in 30 seconds */}
+                    <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl text-[11px] text-slate-300 space-y-1">
+                      <p className="font-bold text-cyan-300">💡 1 daqiqada qanday ulanadi?</p>
+                      <p>1. Telegramda <b>@BotFather</b> ga kiring va <code>/newbot</code> deb yozing, botingiz nomini kiritib <b>Bot Token</b> olasiz.</p>
+                      <p>2. O'z botingizga <code>/start</code> yozing va <b>@userinfobot</b> orqali o'z <b>Chat ID</b> raqamingizni oling.</p>
+                      <p>3. Yuqoriga yozib "Saqlash"ni bosing va "Test xabar yuborish" tugmasini bosing!</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleTestTelegram}
+                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>O'z Telefonimga Test Xabar Yuborish</span>
+                      </button>
+
+                      {testTgStatus && (
+                        <span className="text-xs font-bold text-cyan-300 animate-pulse">
+                          {testTgStatus}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {isSavedNotice && (
-                    <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 text-xs">
-                      <CheckCircle className="w-4 h-4 text-emerald-400" />
-                      <span>Firebase sozlamalari muvaffaqiyatli saqlandi!</span>
+                  {/* Cloud Database URL Card */}
+                  <div className="p-5 rounded-2xl bg-slate-900/60 border border-cyber-border space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Cloud className="w-5 h-5 text-cyan-400" />
+                      <h3 className="text-sm font-bold text-white">Firebase Realtime Database (REST API)</h3>
                     </div>
-                  )}
 
-                  <form onSubmit={handleSaveFirebase} className="p-5 rounded-xl bg-slate-900/60 border border-cyber-border space-y-4">
-                    <h3 className="text-sm font-bold text-white">Firebase Loyiha Parametrlari</h3>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1">
-                          Firebase Project ID
-                        </label>
-                        <input
-                          type="text"
-                          value={firebaseSettings.projectId}
-                          onChange={(e) =>
-                            setFirebaseSettings({ ...firebaseSettings, projectId: e.target.value })
-                          }
-                          placeholder="game-zone-fedya"
-                          className="w-full px-3.5 py-2.5 bg-slate-950 border border-cyber-border rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500 transition-all"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1">
-                          Firebase Web API Key (ixtiyoriy)
-                        </label>
-                        <input
-                          type="text"
-                          value={firebaseSettings.apiKey}
-                          onChange={(e) =>
-                            setFirebaseSettings({ ...firebaseSettings, apiKey: e.target.value })
-                          }
-                          placeholder="AIzaSy..."
-                          className="w-full px-3.5 py-2.5 bg-slate-950 border border-cyber-border rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500 transition-all"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Bulutli Baza URL manzili
+                      </label>
+                      <input
+                        type="text"
+                        value={cloudDbSettings.databaseUrl}
+                        onChange={(e) =>
+                          setCloudDbSettings({ ...cloudDbSettings, databaseUrl: e.target.value })
+                        }
+                        placeholder="https://game-zone-fedya-default-rtdb.firebaseio.com"
+                        className="w-full px-3.5 py-2.5 bg-slate-950 border border-cyber-border rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500 transition-all"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Ushbu baza orqali har xil telefonlardagi foydalanuvchilar va layklar real vaqtda birlashtiriladi.
+                      </p>
                     </div>
+
+                    {isSavedNotice && (
+                      <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 text-xs">
+                        <CheckCircle className="w-4 h-4 text-emerald-400" />
+                        <span>Barcha sozlamalar muvaffaqiyatli saqlandi!</span>
+                      </div>
+                    )}
 
                     <div className="pt-2 flex items-center justify-between">
                       <button
-                        type="submit"
+                        type="button"
+                        onClick={handleSaveSettings}
                         className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-sm transition-all"
                       >
                         <Save className="w-4 h-4" />
@@ -796,7 +903,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                         <span>Hozir Sinxronlash</span>
                       </button>
                     </div>
-                  </form>
+                  </div>
                 </div>
               )}
             </div>

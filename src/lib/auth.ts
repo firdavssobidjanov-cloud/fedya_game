@@ -2,6 +2,8 @@
 // 100% Real users only. No dummy/fake/seeded accounts.
 // Admin: firdavssobidjanov@gmail.com
 
+import { syncNewUserToCloud } from './cloudSync';
+
 export interface AppUser {
   id: string;
   username: string;
@@ -248,6 +250,7 @@ export function registerUser(
   saveStoredPasswords(passwordsMap);
 
   setCurrentUser(newUser);
+  syncNewUserToCloud(newUser);
 
   return { success: true, user: newUser };
 }

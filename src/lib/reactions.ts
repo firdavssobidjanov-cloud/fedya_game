@@ -1,7 +1,8 @@
 // Real-time Like / Dislike reactions and Admin Notifications for GAME ZONE
-// Tracks who liked/disliked which game and notifies Admin
+// 10,000 km Worldwide Sync with Cloud Database and Telegram Notifications
 
 import { getCurrentUser } from './auth';
+import { sendTelegramAlert, getCloudDbConfig } from './cloudSync';
 
 export interface ReactionRecord {
   id: string;
@@ -26,7 +27,7 @@ const STORAGE_KEYS = {
   READ_NOTIFS_TIMESTAMP: 'game_zone_admin_read_notifs_ts_v2',
 };
 
-// Get all reaction records (for Admin notifications feed)
+// Get all reaction records
 export function getAllReactions(): ReactionRecord[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.REACTIONS_LIST);
@@ -44,7 +45,6 @@ export function saveAllReactions(reactions: ReactionRecord[]): void {
   } catch (e) {}
 }
 
-// User reaction map: { [userId_gameId]: 'like' | 'dislike' }
 function getUserReactionsMap(): Record<string, 'like' | 'dislike'> {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.REACTIONS_USER_MAP);
@@ -97,12 +97,10 @@ export function setGameReaction(
 
   let all = getAllReactions();
 
-  // If user clicks the same reaction, remove it (toggle off)
   if (currentReaction === type) {
     delete map[mapKey];
     all = all.filter((r) => !(r.gameId === gameId && (r.email === email || r.userId === userId)));
   } else {
-    // If switching reaction or new reaction
     map[mapKey] = type;
     all = all.filter((r) => !(r.gameId === gameId && (r.email === email || r.userId === userId)));
 
@@ -117,12 +115,65 @@ export function setGameReaction(
       timestamp: Date.now(),
     };
     all.unshift(newRecord);
+
+    // 1. Send instant Telegram alert (Reaches Firdavs 10,000 km away!)
+    const emoji = type === 'like' ? '👍' : '👎';
+    const label = type === 'like' ? 'LAYK BOSDI' : 'DISLAYK BOSDI';
+    sendTelegramAlert(
+      `${emoji} <b>O'yinga Yangi ${label}!</b>\n\n` +
+      `🎮 <b>O'yin:</b> <code>${gameTitle}</code>\n` +
+      `👤 <b>Kim:</b> <b>${username}</b> (${email})\n` +
+      `⭐ <b>Reaksiya:</b> ${emoji} ${type.toUpperCase()}\n` +
+      `🕒 <b>Vaqti:</b> ${new Date().toLocaleString()}`
+    );
+
+    // 2. Cloud DB Sync
+    syncReactionToCloud(newRecord);
   }
 
   saveAllReactions(all);
   saveUserReactionsMap(map);
 
   return getGameReactionStats(gameId);
+}
+
+// Cloud DB push
+async function syncReactionToCloud(record: ReactionRecord): Promise<void> {
+  const config = getCloudDbConfig();
+  if (!config.enabled || !config.databaseUrl) return;
+
+  try {
+    const cleanBase = config.databaseUrl.replace(/\/$/, '');
+    await fetch(`${cleanBase}/reactions/${record.id}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    }).catch(() => {});
+  } catch (e) {}
+}
+
+// PULL ALL REACTIONS FROM CLOUD (FOR ADMIN PANEL ON ANY DEVICE)
+export async function pullCloudReactions(): Promise<ReactionRecord[]> {
+  const config = getCloudDbConfig();
+  if (!config.enabled || !config.databaseUrl) return getAllReactions();
+
+  try {
+    const cleanBase = config.databaseUrl.replace(/\/$/, '');
+    const res = await fetch(`${cleanBase}/reactions.json`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        const cloudReactions: ReactionRecord[] = Object.values(data);
+        if (cloudReactions.length > 0) {
+          // Sort newest first
+          cloudReactions.sort((a, b) => b.timestamp - a.timestamp);
+          saveAllReactions(cloudReactions);
+          return cloudReactions;
+        }
+      }
+    }
+  } catch (e) {}
+  return getAllReactions();
 }
 
 // Admin Notifications count

@@ -27,7 +27,14 @@ import {
   incrementUserGameCount,
   AppUser,
 } from './lib/auth';
-import { incrementTotalGamesPlayed, trackRealVisit, triggerCloudSync } from './lib/cloudSync';
+import {
+  incrementTotalGamesPlayed,
+  trackRealVisit,
+  triggerGlobalCloudSync,
+  pullCloudStats,
+  pullCloudUsers,
+} from './lib/cloudSync';
+import { pullCloudReactions } from './lib/reactions';
 import { Language, getLangText } from './lib/translations';
 import { sounds } from './lib/sounds';
 import { Trophy } from 'lucide-react';
@@ -54,8 +61,11 @@ export function App() {
 
   // Track real visitor & listen for secret #admin entrance
   useEffect(() => {
-    // 1. Record real visitor visit
+    // 1. Record real visitor visit and sync global data
     trackRealVisit();
+    pullCloudStats();
+    pullCloudUsers();
+    pullCloudReactions();
 
     // 2. Secret #admin URL hash listener
     const checkAdminHash = () => {
@@ -87,7 +97,7 @@ export function App() {
       }
     });
 
-    triggerCloudSync();
+    triggerGlobalCloudSync();
 
     return () => {
       window.removeEventListener('hashchange', checkAdminHash);
