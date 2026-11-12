@@ -1,9 +1,10 @@
-import React from 'react';
-import { Play, Heart, Trophy, Zap, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Heart, Trophy, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { GameDefinition } from '../lib/gamesCatalog';
 import { getLangText, Language } from '../lib/translations';
 import { getHighScore } from '../lib/storage';
 import { sounds } from '../lib/sounds';
+import { getGameReactionStats, setGameReaction, ReactionStats } from '../lib/reactions';
 
 interface GameCardProps {
   game: GameDefinition;
@@ -21,6 +22,21 @@ export const GameCard: React.FC<GameCardProps> = ({
   lang,
 }) => {
   const highScore = getHighScore(game.id);
+  const [reaction, setReaction] = useState<ReactionStats>(() => getGameReactionStats(game.id));
+
+  const gameTitle = typeof game.title === 'string'
+    ? game.title
+    : game.title[lang] || game.title.uz || game.title.en;
+
+  const handleLike = () => {
+    const updated = setGameReaction(game.id, gameTitle, 'like');
+    setReaction(updated);
+  };
+
+  const handleDislike = () => {
+    const updated = setGameReaction(game.id, gameTitle, 'dislike');
+    setReaction(updated);
+  };
 
   const getCategoryColor = (cat: string) => {
     switch (cat) {
@@ -110,20 +126,63 @@ export const GameCard: React.FC<GameCardProps> = ({
         </p>
       </div>
 
-      {/* Bottom Bar: High Score & Play CTA */}
-      <div className="pt-2 border-t border-cyber-border/70 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1.5 text-slate-400">
-          <Trophy className="w-3.5 h-3.5 text-amber-400" />
-          <span className="font-mono font-medium text-slate-300">
-            {highScore > 0 ? highScore.toLocaleString() : '—'}
-          </span>
+      <div>
+        {/* Like & Dislike Reactions Bar */}
+        <div className="flex items-center justify-between mb-2.5 pt-2 border-t border-cyber-border/50 text-xs">
+          <div className="flex items-center gap-1.5">
+            {/* Like */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                sounds.playClick();
+                handleLike();
+              }}
+              title="Layk bosish"
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-bold transition-all ${
+                reaction.userReaction === 'like'
+                  ? 'bg-emerald-950/80 border-emerald-500/70 text-emerald-300 shadow-sm'
+                  : 'bg-slate-900/80 border-slate-700/60 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/40'
+              }`}
+            >
+              <ThumbsUp className={`w-3 h-3 ${reaction.userReaction === 'like' ? 'fill-current' : ''}`} />
+              <span className="font-mono text-[10px]">{reaction.likes}</span>
+            </button>
+
+            {/* Dislike */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                sounds.playClick();
+                handleDislike();
+              }}
+              title="Dislayk bosish"
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-bold transition-all ${
+                reaction.userReaction === 'dislike'
+                  ? 'bg-rose-950/80 border-rose-500/70 text-rose-300 shadow-sm'
+                  : 'bg-slate-900/80 border-slate-700/60 text-slate-400 hover:text-rose-400 hover:border-rose-500/40'
+              }`}
+            >
+              <ThumbsDown className={`w-3 h-3 ${reaction.userReaction === 'dislike' ? 'fill-current' : ''}`} />
+              <span className="font-mono text-[10px]">{reaction.dislikes}</span>
+            </button>
+          </div>
+
+          {/* High Score */}
+          <div className="flex items-center gap-1 text-slate-400 text-xs">
+            <Trophy className="w-3.5 h-3.5 text-amber-400" />
+            <span className="font-mono font-medium text-slate-300 text-[11px]">
+              {highScore > 0 ? highScore.toLocaleString() : '—'}
+            </span>
+          </div>
         </div>
 
-        <span className="text-[11px] font-bold text-cyan-400 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
-          {getLangText('playNow', lang)} →
-        </span>
+        {/* Bottom Play CTA */}
+        <div className="flex items-center justify-end text-xs">
+          <span className="text-[11px] font-bold text-cyan-400 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+            {getLangText('playNow', lang)} →
+          </span>
+        </div>
       </div>
     </div>
   );
 };
-

@@ -1,9 +1,10 @@
-import React from 'react';
-import { Play, Sparkles, Trophy, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Sparkles, Trophy, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { GameDefinition } from '../lib/gamesCatalog';
 import { getLangText, Language } from '../lib/translations';
 import { getHighScore } from '../lib/storage';
 import { sounds } from '../lib/sounds';
+import { getGameReactionStats, setGameReaction, ReactionStats } from '../lib/reactions';
 
 interface FeaturedBannerProps {
   game: GameDefinition;
@@ -13,6 +14,21 @@ interface FeaturedBannerProps {
 
 export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({ game, onPlayGame, lang }) => {
   const highScore = getHighScore(game.id);
+  const [reaction, setReaction] = useState<ReactionStats>(() => getGameReactionStats(game.id));
+
+  const gameTitle = typeof game.title === 'string'
+    ? game.title
+    : game.title[lang] || game.title.uz || game.title.en;
+
+  const handleLike = () => {
+    const updated = setGameReaction(game.id, gameTitle, 'like');
+    setReaction(updated);
+  };
+
+  const handleDislike = () => {
+    const updated = setGameReaction(game.id, gameTitle, 'dislike');
+    setReaction(updated);
+  };
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyber-card via-[#131626] to-[#0d1020] border border-cyber-border shadow-2xl p-6 md:p-8 mb-8 group">
@@ -40,7 +56,7 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({ game, onPlayGame
             {game.description[lang]}
           </p>
 
-          <div className="flex items-center gap-4 pt-2">
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               onClick={() => {
                 sounds.playScore();
@@ -51,6 +67,41 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({ game, onPlayGame
               <Play className="w-4 h-4 fill-current" />
               <span>{getLangText('playNow', lang)}</span>
             </button>
+
+            {/* Like & Dislike */}
+            <div className="flex items-center gap-1.5 p-1 bg-black/40 border border-cyber-border/70 rounded-xl">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sounds.playClick();
+                  handleLike();
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                  reaction.userReaction === 'like'
+                    ? 'bg-emerald-950/80 border-emerald-500/70 text-emerald-300 shadow-sm'
+                    : 'bg-transparent border-transparent text-slate-400 hover:text-emerald-400'
+                }`}
+              >
+                <ThumbsUp className={`w-3.5 h-3.5 ${reaction.userReaction === 'like' ? 'fill-current' : ''}`} />
+                <span className="font-mono">{reaction.likes}</span>
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sounds.playClick();
+                  handleDislike();
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                  reaction.userReaction === 'dislike'
+                    ? 'bg-rose-950/80 border-rose-500/70 text-rose-300 shadow-sm'
+                    : 'bg-transparent border-transparent text-slate-400 hover:text-rose-400'
+                }`}
+              >
+                <ThumbsDown className={`w-3.5 h-3.5 ${reaction.userReaction === 'dislike' ? 'fill-current' : ''}`} />
+                <span className="font-mono">{reaction.dislikes}</span>
+              </button>
+            </div>
 
             {highScore > 0 && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40 border border-amber-500/30 text-amber-300 text-xs font-bold">
@@ -71,4 +122,3 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({ game, onPlayGame
     </div>
   );
 };
-

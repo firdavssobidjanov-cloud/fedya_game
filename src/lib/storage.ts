@@ -44,8 +44,8 @@ export const AVATARS = [
 const STORAGE_KEYS = {
   PROFILE: 'game_zone_profile',
   HIGH_SCORES: 'game_zone_highscores',
-  FAVORITES: 'game_zone_favorites',
-  RECENTS: 'game_zone_recents',
+  FAVORITES: 'game_zone_favorites_v2',
+  RECENTS: 'game_zone_real_recents_v2',
   ACHIEVEMENTS: 'game_zone_achievements',
   LANG: 'game_zone_lang',
 };
@@ -151,8 +151,12 @@ export function toggleFavorite(gameId: string): string[] {
 // Recent Games
 export function getRecentGames(): string[] {
   try {
+    localStorage.removeItem('game_zone_recents');
     const data = localStorage.getItem(STORAGE_KEYS.RECENTS);
-    if (data) return JSON.parse(data);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) return parsed;
+    }
   } catch (e) {}
   return [];
 }

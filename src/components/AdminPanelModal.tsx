@@ -20,6 +20,10 @@ import {
   Mail,
   ArrowRight,
   Eye,
+  ThumbsUp,
+  ThumbsDown,
+  Bell,
+  MessageSquare,
 } from 'lucide-react';
 import {
   isCurrentUserAdmin,
@@ -38,6 +42,12 @@ import {
   FirebaseConfig,
   AnalyticsSummary,
 } from '../lib/cloudSync';
+import {
+  getAllReactions,
+  ReactionRecord,
+  getUnreadReactionsCount,
+  markReactionsAsRead,
+} from '../lib/reactions';
 import { GAMES_CATALOG } from '../lib/gamesCatalog';
 import { AVATARS } from '../lib/storage';
 import { Language } from '../lib/translations';
@@ -51,8 +61,11 @@ interface AdminPanelModalProps {
 
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClose, lang }) => {
   const [isAdmin, setIsAdmin] = useState(isCurrentUserAdmin());
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'database'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'reactions' | 'database'>('overview');
   const [analytics, setAnalytics] = useState<AnalyticsSummary>(() => getAnalyticsSummary());
+  const [reactionsList, setReactionsList] = useState<ReactionRecord[]>(() => getAllReactions());
+  const [unreadNotifs, setUnreadNotifs] = useState<number>(() => getUnreadReactionsCount());
+  const [reactionFilter, setReactionFilter] = useState<'all' | 'like' | 'dislike'>('all');
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [firebaseSettings, setFirebaseSettings] = useState<FirebaseConfig>(() => getFirebaseConfig());
   const [isSavedNotice, setIsSavedNotice] = useState(false);
@@ -67,6 +80,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
     if (isOpen) {
       setIsAdmin(isCurrentUserAdmin());
       setAnalytics(getAnalyticsSummary());
+      setReactionsList(getAllReactions());
+      setUnreadNotifs(getUnreadReactionsCount());
       setFirebaseSettings(getFirebaseConfig());
       setGateError(null);
     }
@@ -88,6 +103,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
     sounds.playWin();
     setIsAdmin(true);
     setAnalytics(getAnalyticsSummary());
+    setReactionsList(getAllReactions());
   };
 
   const handleRefresh = async () => {
@@ -95,6 +111,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
     setIsSyncing(true);
     await triggerCloudSync();
     setAnalytics(getAnalyticsSummary());
+    setReactionsList(getAllReactions());
     setTimeout(() => {
       setIsSyncing(false);
     }, 600);
@@ -123,10 +140,26 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
     triggerCloudSync();
   };
 
+  const handleOpenReactionsTab = () => {
+    sounds.playClick();
+    setActiveTab('reactions');
+    markReactionsAsRead();
+    setUnreadNotifs(0);
+  };
+
   const filteredUsers = analytics.users.filter((u) => {
     const q = searchUserQuery.toLowerCase();
     return u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
   });
+
+  const filteredReactions = reactionsList.filter((r) => {
+    if (reactionFilter === 'like') return r.type === 'like';
+    if (reactionFilter === 'dislike') return r.type === 'dislike';
+    return true;
+  });
+
+  const totalLikes = reactionsList.filter((r) => r.type === 'like').length;
+  const totalDislikes = reactionsList.filter((r) => r.type === 'dislike').length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/90 backdrop-blur-md animate-fadeIn">
@@ -152,7 +185,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                100% Haqiqiy (Real) Statistik Ma'lumotlar
+                100% Haqiqiy (Real) Statistik Ma'lumotlar & Xabarnomalar
               </p>
             </div>
           </div>
@@ -251,53 +284,71 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
           /* AUTHENTICATED ADMIN DASHBOARD */
           <>
             {/* Nav Tabs */}
-            <div className="flex border-b border-cyber-border/70 px-5 bg-slate-950/40 text-xs font-bold">
+            <div className="flex border-b border-cyber-border/70 px-5 bg-slate-950/40 text-xs font-bold overflow-x-auto">
               <button
                 onClick={() => {
                   sounds.playClick();
                   setActiveTab('overview');
                 }}
-                className={`py-3 px-4 border-b-2 flex items-center gap-2 transition-all ${
+                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all ${
                   activeTab === 'overview'
                     ? 'border-amber-400 text-amber-300 bg-amber-500/10'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Activity className="w-4 h-4" />
-                <span>Haqiqiy Tahlil & Statistika</span>
+                <span>Haqiqiy Tahlil</span>
               </button>
+
+              <button
+                onClick={handleOpenReactionsTab}
+                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all relative ${
+                  activeTab === 'reactions'
+                    ? 'border-amber-400 text-amber-300 bg-amber-500/10'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Bell className="w-4 h-4 text-pink-400" />
+                <span>Xabarlar & Reaksiyalar ({reactionsList.length})</span>
+                {unreadNotifs > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping absolute top-2 right-2" />
+                )}
+              </button>
+
               <button
                 onClick={() => {
                   sounds.playClick();
                   setActiveTab('users');
                 }}
-                className={`py-3 px-4 border-b-2 flex items-center gap-2 transition-all ${
+                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all ${
                   activeTab === 'users'
                     ? 'border-amber-400 text-amber-300 bg-amber-500/10'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Users className="w-4 h-4" />
-                <span>Real Foydalanuvchilar ({analytics.users.length})</span>
+                <span>Foydalanuvchilar ({analytics.users.length})</span>
               </button>
+
               <button
                 onClick={() => {
                   sounds.playClick();
                   setActiveTab('database');
                 }}
-                className={`py-3 px-4 border-b-2 flex items-center gap-2 transition-all ${
+                className={`py-3 px-4 border-b-2 flex items-center gap-2 whitespace-nowrap transition-all ${
                   activeTab === 'database'
                     ? 'border-amber-400 text-amber-300 bg-amber-500/10'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Cloud className="w-4 h-4" />
-                <span>Bulutli Baza (Firebase)</span>
+                <span>Bulutli Baza</span>
               </button>
             </div>
 
             {/* TAB CONTENTS */}
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
+              {/* TAB 1: OVERVIEW */}
               {activeTab === 'overview' && (
                 <>
                   {/* Real KPI Cards */}
@@ -344,18 +395,27 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                       <p className="text-[11px] text-slate-400 mt-1">Haqiqiy o'yin sessiyalari</p>
                     </div>
 
-                    {/* Card 4: Platform Games */}
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-950/40 to-slate-900/90 border border-emerald-500/30">
+                    {/* Card 4: Reactions Summary */}
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-pink-950/40 to-slate-900/90 border border-pink-500/30">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
-                          O'yinlar Soni
+                        <span className="text-xs font-bold text-pink-300 uppercase tracking-wider">
+                          O'yinchilar Bahosi
                         </span>
-                        <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
-                          <Layers className="w-5 h-5" />
+                        <div className="p-2 rounded-lg bg-pink-500/20 text-pink-400">
+                          <ThumbsUp className="w-5 h-5" />
                         </div>
                       </div>
-                      <div className="text-3xl font-black text-white">{GAMES_CATALOG.length} ta</div>
-                      <p className="text-[11px] text-slate-400 mt-1">100% oflayn o'yinlar</p>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1 text-emerald-400 font-black text-2xl">
+                          <ThumbsUp className="w-4 h-4" />
+                          <span>{totalLikes}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-rose-400 font-black text-2xl">
+                          <ThumbsDown className="w-4 h-4" />
+                          <span>{totalDislikes}</span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">Jami berilgan layk va dislayklar</p>
                     </div>
                   </div>
 
@@ -414,26 +474,135 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                   {/* Fast Action Buttons */}
                   <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button
-                      onClick={() => {
-                        sounds.playClick();
-                        exportUsersToCSV();
-                      }}
-                      className="px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-emerald-500 text-emerald-300 font-bold text-xs flex items-center gap-2 transition-all shadow-sm"
+                      onClick={handleOpenReactionsTab}
+                      className="px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-pink-500 text-pink-300 font-bold text-xs flex items-center gap-2 transition-all shadow-sm"
                     >
-                      <Download className="w-4 h-4" />
-                      <span>Foydalanuvchilar Ro'yxatini Yuklab Olish (CSV / Excel)</span>
+                      <Bell className="w-4 h-4" />
+                      <span>Xabarlarni Ko'rish ({reactionsList.length})</span>
                     </button>
                     <button
                       onClick={() => setActiveTab('users')}
                       className="px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-cyan-500 text-cyan-300 font-bold text-xs flex items-center gap-2 transition-all shadow-sm"
                     >
                       <Users className="w-4 h-4" />
-                      <span>Foydalanuvchilarni Ko'rish va Boshqarish</span>
+                      <span>Foydalanuvchilarni Boshqarish</span>
                     </button>
                   </div>
                 </>
               )}
 
+              {/* TAB 2: REACTIONS & NOTIFICATIONS FEED */}
+              {activeTab === 'reactions' && (
+                <div className="space-y-5">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-900/80 border border-cyber-border">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-pink-400" />
+                        <span>O'yinchilar Reaksiyalari & Xabarlari</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Qaysi foydalanuvchi qaysi akkauntdan qaysi o'yinga Layk yoki Dislayk bosgani haqida to'liq xabarnomalar:
+                      </p>
+                    </div>
+
+                    {/* Filter buttons */}
+                    <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+                      <button
+                        onClick={() => setReactionFilter('all')}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                          reactionFilter === 'all'
+                            ? 'bg-purple-600 text-white'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Barchasi ({reactionsList.length})
+                      </button>
+                      <button
+                        onClick={() => setReactionFilter('like')}
+                        className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
+                          reactionFilter === 'like'
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-slate-400 hover:text-emerald-400'
+                        }`}
+                      >
+                        <ThumbsUp className="w-3 h-3" />
+                        <span>Layklar ({totalLikes})</span>
+                      </button>
+                      <button
+                        onClick={() => setReactionFilter('dislike')}
+                        className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
+                          reactionFilter === 'dislike'
+                            ? 'bg-rose-600 text-white'
+                            : 'text-slate-400 hover:text-rose-400'
+                        }`}
+                      >
+                        <ThumbsDown className="w-3 h-3" />
+                        <span>Dislayklar ({totalDislikes})</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Notifications List */}
+                  <div className="space-y-2.5">
+                    {filteredReactions.length === 0 ? (
+                      <div className="p-12 text-center rounded-2xl bg-slate-950/60 border border-cyber-border text-slate-500 text-xs">
+                        Hozircha hech kim layk yoki dislayk bosmagan. Foydalanuvchilar o'yinlarga reaksiya qoldirsa, bu yerda darhol real vaqtda xabar paydo bo'ladi.
+                      </div>
+                    ) : (
+                      filteredReactions.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-3.5 rounded-xl bg-slate-950/70 border border-cyber-border/80 hover:border-slate-700 transition-all text-xs"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`p-2 rounded-xl flex items-center justify-center ${
+                                item.type === 'like'
+                                  ? 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-400'
+                                  : 'bg-rose-950/80 border border-rose-500/50 text-rose-400'
+                              }`}
+                            >
+                              {item.type === 'like' ? (
+                                <ThumbsUp className="w-4 h-4" />
+                              ) : (
+                                <ThumbsDown className="w-4 h-4" />
+                              )}
+                            </div>
+
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-white text-sm">
+                                  {item.username}
+                                </span>
+                                <span className="text-[11px] font-mono text-slate-400">
+                                  ({item.email})
+                                </span>
+                              </div>
+
+                              <p className="text-slate-300 mt-0.5">
+                                <span
+                                  className={`font-bold mr-1.5 ${
+                                    item.type === 'like' ? 'text-emerald-400' : 'text-rose-400'
+                                  }`}
+                                >
+                                  {item.type === 'like' ? '👍 Layk bosdi' : '👎 Dislayk bosdi'}
+                                </span>
+                                o'yinga: <span className="text-cyan-300 font-semibold">{item.gameTitle}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="text-[11px] font-mono text-slate-500 text-right">
+                            {new Date(item.timestamp).toLocaleString()}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: USERS MANAGEMENT */}
               {activeTab === 'users' && (
                 <div className="space-y-4">
                   {/* Search & Export header */}
@@ -554,6 +723,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                 </div>
               )}
 
+              {/* TAB 4: DATABASE */}
               {activeTab === 'database' && (
                 <div className="space-y-5">
                   <div className="p-4 rounded-xl bg-cyan-950/30 border border-cyan-500/30 text-xs text-cyan-300 flex items-start gap-3">
@@ -561,7 +731,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
                     <div>
                       <h3 className="font-bold text-white mb-1">Gibrid Bulutli Arxitektura</h3>
                       <p className="text-slate-300 leading-relaxed">
-                        Turli xil qurilmalardan kirgan foydalanuvchilar soni va o'yinlar Firebase Firestore orqali sinxronlashadi. Internet yo'q bo'lsa ham o'yinlar 100% oflayn ishlayveradi.
+                        Turli xil qurilmalardan kirgan foydalanuvchilar soni, o'yinlar va layk/dislayklar Firebase Firestore orqali sinxronlashadi. Internet yo'q bo'lsa ham o'yinlar 100% oflayn ishlayveradi.
                       </p>
                     </div>
                   </div>
