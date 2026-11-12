@@ -92,15 +92,45 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       ) : (
         /* Empty State */
-        <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl bg-cyber-card/50 border border-cyber-border">
-          <span className="text-5xl mb-3">🔍</span>
-          <h3 className="text-lg font-bold text-slate-200 mb-1">
-            {getLangText('noGamesFound', lang)}
-          </h3>
-          <p className="text-xs text-slate-500">
-            Try checking your spelling or clearing active filters.
-          </p>
-        </div>
+        currentCategory === 'favorites' ? (
+          <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl bg-cyber-card/50 border border-cyber-border">
+            <span className="text-5xl mb-3">❤️</span>
+            <h3 className="text-lg font-bold text-slate-200 mb-1">
+              {lang === 'ru' ? 'В избранном пока нет игр' : lang === 'uz' ? 'Saralangan o\'yinlar hali yo\'q' : 'No favorites yet'}
+            </h3>
+            <p className="text-xs text-slate-400 max-w-sm">
+              {lang === 'ru'
+                ? 'Нажмите на иконку сердечка на карточке любой игры, чтобы добавить её в избранное.'
+                : lang === 'uz'
+                ? 'O\'zingizga yoqqan o\'yin kartochkasidagi yurakcha belgisini bossangiz, u shu yerda saqlanadi.'
+                : 'Click the heart icon on any game card to add it to your favorites.'}
+            </p>
+          </div>
+        ) : currentCategory === 'recent' ? (
+          <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl bg-cyber-card/50 border border-cyber-border">
+            <span className="text-5xl mb-3">🕒</span>
+            <h3 className="text-lg font-bold text-slate-200 mb-1">
+              {lang === 'ru' ? 'Вы еще не играли в игры' : lang === 'uz' ? 'Hali hech qanday o\'yin o\'ynamadingiz' : 'No recent games'}
+            </h3>
+            <p className="text-xs text-slate-400 max-w-sm">
+              {lang === 'ru'
+                ? 'Сыграйте в любую игру, и она появится здесь для быстрого доступа.'
+                : lang === 'uz'
+                ? 'Istalgan o\'yinni o\'ynab ko\'ring, u tez kirish uchun shu yerda paydo bo\'ladi.'
+                : 'Play any game and it will appear here for quick access.'}
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl bg-cyber-card/50 border border-cyber-border">
+            <span className="text-5xl mb-3">🔍</span>
+            <h3 className="text-lg font-bold text-slate-200 mb-1">
+              {getLangText('noGamesFound', lang)}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {lang === 'uz' ? 'Qidiruv so\'zini tekshiring yoki filtrlarni tozalang.' : 'Try checking your spelling or clearing active filters.'}
+            </p>
+          </div>
+        )
       )}
     </div>
   );

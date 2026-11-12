@@ -101,9 +101,38 @@ export function saveHighScore(gameId: string, score: number): boolean {
 export function getFavorites(): string[] {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.FAVORITES);
-    if (data) return JSON.parse(data);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        // Clean legacy preset list if found
+        const isOldDefault =
+          parsed.length === 5 &&
+          parsed.includes('snake') &&
+          parsed.includes('flappy') &&
+          parsed.includes('2048') &&
+          parsed.includes('brick_breaker') &&
+          parsed.includes('blackjack');
+        if (isOldDefault) {
+          localStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify([]));
+          return [];
+        }
+        return parsed;
+      }
+    }
   } catch (e) {}
-  return ['snake', 'flappy', '2048', 'brick_breaker', 'blackjack'];
+  return []; // 100% toza bo'sh holatda boshlanadi
+}
+
+export function clearFavorites(): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify([]));
+  } catch (e) {}
+}
+
+export function clearRecents(): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.RECENTS, JSON.stringify([]));
+  } catch (e) {}
 }
 
 export function toggleFavorite(gameId: string): string[] {

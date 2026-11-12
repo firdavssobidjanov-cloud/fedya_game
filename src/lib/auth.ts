@@ -33,7 +33,7 @@ export function clearLegacyDummyData(): void {
   try {
     localStorage.removeItem('game_zone_registered_users');
     localStorage.removeItem('game_zone_user_creds');
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // Get all REAL registered users (starts empty, only real users)
@@ -45,21 +45,21 @@ export function getAllUsers(): AppUser[] {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
     }
-  } catch (e) {}
+  } catch (e) { }
   return [];
 }
 
 export function saveAllUsers(users: AppUser[]): void {
   try {
     localStorage.setItem(AUTH_STORAGE_KEYS.USERS_LIST, JSON.stringify(users));
-  } catch (e) {}
+  } catch (e) { }
 }
 
 export function getCurrentUser(): AppUser | null {
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEYS.CURRENT_USER);
     if (raw) return JSON.parse(raw);
-  } catch (e) {}
+  } catch (e) { }
   return null;
 }
 
@@ -71,7 +71,7 @@ export function setCurrentUser(user: AppUser | null): void {
       localStorage.removeItem(AUTH_STORAGE_KEYS.CURRENT_USER);
     }
     notifyAuthSubscribers(user);
-  } catch (e) {}
+  } catch (e) { }
 }
 
 export function isCurrentUserAdmin(): boolean {
@@ -96,7 +96,7 @@ function notifyAuthSubscribers(user: AppUser | null) {
   authListeners.forEach((l) => {
     try {
       l(user);
-    } catch (e) {}
+    } catch (e) { }
   });
 }
 
@@ -105,14 +105,14 @@ function getStoredPasswords(): Record<string, string> {
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEYS.USER_PASSWORDS);
     if (raw) return JSON.parse(raw);
-  } catch (e) {}
+  } catch (e) { }
   return {};
 }
 
 function saveStoredPasswords(map: Record<string, string>): void {
   try {
     localStorage.setItem(AUTH_STORAGE_KEYS.USER_PASSWORDS, JSON.stringify(map));
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // Admin secret login

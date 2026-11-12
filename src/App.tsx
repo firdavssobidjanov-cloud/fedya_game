@@ -12,6 +12,8 @@ import {
   getFavorites,
   toggleFavorite,
   getRecentGames,
+  clearFavorites,
+  clearRecents,
   getStoredLanguage,
   saveStoredLanguage,
   PlayerProfile,
@@ -133,6 +135,10 @@ export function App() {
     sounds.playClick();
     logoutUser();
     setCurrentUser(null);
+    clearFavorites();
+    clearRecents();
+    setFavorites([]);
+    setRecentGames([]);
     setProfile(getStoredProfile());
   };
 
@@ -144,6 +150,10 @@ export function App() {
       username: user.username,
       avatarId: user.avatarId,
     }));
+    clearFavorites();
+    clearRecents();
+    setFavorites([]);
+    setRecentGames([]);
   };
 
   const handleCloseAdminModal = () => {
