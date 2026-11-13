@@ -264,6 +264,8 @@ export function App() {
               onToggleFavorite={handleToggleFavorite}
               onPlayGame={handlePlayGame}
               lang={lang}
+              currentUser={currentUser}
+              onOpenAuthModal={() => setIsAuthModalOpen(true)}
             />
           )}
         </main>

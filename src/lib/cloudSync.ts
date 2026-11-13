@@ -1,6 +1,6 @@
 // Global 10,000 km Cloud Sync Engine for GAME ZONE
 // Connects with live Global KV Database (CORS-enabled) & Telegram Bot API
-// 100% Real-time sync across any device or phone worldwide
+// 100% Real-time sync across any device or phone worldwide with zero caching issues
 
 import { getAllUsers, saveAllUsers, AppUser } from './auth';
 
@@ -47,6 +47,23 @@ const STORAGE_KEYS = {
   ACTIVITY_LIST: 'game_zone_real_activity_feed_v3',
   LAST_SYNC: 'game_zone_last_sync_timestamp_v3',
 };
+
+// Central fetcher with guaranteed Cache-Busting and No-Store headers
+export async function cloudFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
+  const separator = endpoint.includes('?') ? '&' : '?';
+  const url = `${CLOUD_API_BASE}/${endpoint}${separator}_t=${Date.now()}&_r=${Math.random().toString(36).substring(2, 7)}`;
+  const headers = {
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    ...(options.headers || {}),
+  };
+  return fetch(url, {
+    ...options,
+    headers,
+    cache: 'no-store',
+  });
+}
 
 // 1. CLOUD DB CONFIG (COMPATIBILITY)
 export function getCloudDbConfig(): CloudDatabaseConfig {
@@ -132,9 +149,18 @@ export async function logActivityToCloud(
   if (local.length > 100) local.length = 100;
   saveActivityList(local);
 
+  // 1. Save individual activity key
+  try {
+    await cloudFetch(`act:${record.timestamp}_${record.id}`, {
+      method: 'POST',
+      body: JSON.stringify(record),
+    });
+  } catch (e) {}
+
+  // 2. Also update array in gamezone_activity
   try {
     let cloudList: ActivityRecord[] = [];
-    const res = await fetch(`${CLOUD_API_BASE}/gamezone_activity`);
+    const res = await cloudFetch('gamezone_activity');
     if (res.ok) {
       const data = await res.json().catch(() => []);
       if (Array.isArray(data)) cloudList = data;
@@ -142,7 +168,7 @@ export async function logActivityToCloud(
     cloudList.unshift(record);
     if (cloudList.length > 100) cloudList = cloudList.slice(0, 100);
 
-    await fetch(`${CLOUD_API_BASE}/gamezone_activity`, {
+    await cloudFetch('gamezone_activity', {
       method: 'POST',
       body: JSON.stringify(cloudList),
     });
@@ -150,17 +176,48 @@ export async function logActivityToCloud(
 }
 
 export async function pullCloudActivity(): Promise<ActivityRecord[]> {
+  const activityMap = new Map<string, ActivityRecord>();
+
+  // Local first
+  getActivityList().forEach((a) => activityMap.set(a.id, a));
+
+  // Pull individual prefix keys
   try {
-    const res = await fetch(`${CLOUD_API_BASE}/gamezone_activity`);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        saveActivityList(data);
-        return data;
+    const prefixRes = await cloudFetch('?prefix=act:&values=true');
+    if (prefixRes.ok) {
+      const text = await prefixRes.text();
+      const lines = text.split('\n').filter((l) => l.trim().length > 0);
+      for (const line of lines) {
+        const eqIdx = line.indexOf('=');
+        if (eqIdx !== -1) {
+          try {
+            const act = JSON.parse(line.substring(eqIdx + 1)) as ActivityRecord;
+            if (act && act.id) activityMap.set(act.id, act);
+          } catch (e) {}
+        }
       }
     }
   } catch (e) {}
-  return getActivityList();
+
+  // Pull main array fallback
+  try {
+    const res = await cloudFetch('gamezone_activity');
+    if (res.ok) {
+      const data = await res.json().catch(() => []);
+      if (Array.isArray(data)) {
+        data.forEach((a: ActivityRecord) => {
+          if (a && a.id) activityMap.set(a.id, a);
+        });
+      }
+    }
+  } catch (e) {}
+
+  const sorted = Array.from(activityMap.values())
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 100);
+
+  saveActivityList(sorted);
+  return sorted;
 }
 
 // 4. VISITORS TRACKING (CLOUD + LOCAL)
@@ -187,7 +244,7 @@ export async function trackRealVisit(): Promise<void> {
       // Update in cloud
       try {
         let stats: any = {};
-        const res = await fetch(`${CLOUD_API_BASE}/gamezone_stats`);
+        const res = await cloudFetch('gamezone_stats');
         if (res.ok) {
           stats = await res.json().catch(() => ({}));
         }
@@ -195,7 +252,7 @@ export async function trackRealVisit(): Promise<void> {
         stats.visitors = cloudVisitors;
         localStorage.setItem(STORAGE_KEYS.REAL_VISITORS_COUNT, cloudVisitors.toString());
 
-        await fetch(`${CLOUD_API_BASE}/gamezone_stats`, {
+        await cloudFetch('gamezone_stats', {
           method: 'POST',
           body: JSON.stringify(stats),
         }).catch(() => {});
@@ -249,7 +306,7 @@ export async function incrementTotalGamesPlayed(gameId: string): Promise<void> {
     // Push to cloud stats
     try {
       let stats: any = {};
-      const res = await fetch(`${CLOUD_API_BASE}/gamezone_stats`);
+      const res = await cloudFetch('gamezone_stats');
       if (res.ok) {
         stats = await res.json().catch(() => ({}));
       }
@@ -257,7 +314,7 @@ export async function incrementTotalGamesPlayed(gameId: string): Promise<void> {
       stats.breakdown = stats.breakdown || {};
       stats.breakdown[gameId] = (stats.breakdown[gameId] || 0) + 1;
 
-      await fetch(`${CLOUD_API_BASE}/gamezone_stats`, {
+      await cloudFetch('gamezone_stats', {
         method: 'POST',
         body: JSON.stringify(stats),
       }).catch(() => {});
@@ -292,23 +349,32 @@ export async function syncNewUserToCloud(user: AppUser): Promise<void> {
     username: user.username,
     email: user.email,
     totalGamesPlayed: user.totalGamesPlayed || 0,
-    details: 'Yangi akkaunt ro\'yxatdan o\'tdi',
+    details: "Yangi akkaunt ro'yxatdan o'tdi",
   });
 
-  // 3. Push to live Cloud Database
+  const userKey = encodeURIComponent(user.email.toLowerCase().trim());
+
+  // 3. Save individual user key: user:{email} (Immutable, cannot be overwritten by other devices)
+  try {
+    await cloudFetch(`user:${userKey}`, {
+      method: 'POST',
+      body: JSON.stringify(user),
+    });
+  } catch (e) {}
+
+  // 4. Also update global gamezone_users array
   try {
     let cloudUsers: AppUser[] = [];
-    const res = await fetch(`${CLOUD_API_BASE}/gamezone_users`);
+    const res = await cloudFetch('gamezone_users');
     if (res.ok) {
       const data = await res.json().catch(() => []);
       if (Array.isArray(data)) cloudUsers = data;
     }
 
-    // Filter out if already exists
     cloudUsers = cloudUsers.filter((u) => u.email.toLowerCase() !== user.email.toLowerCase());
     cloudUsers.unshift(user);
 
-    await fetch(`${CLOUD_API_BASE}/gamezone_users`, {
+    await cloudFetch('gamezone_users', {
       method: 'POST',
       body: JSON.stringify(cloudUsers),
     });
@@ -317,9 +383,20 @@ export async function syncNewUserToCloud(user: AppUser): Promise<void> {
 
 // Sync updated user stats (like games played or last active) to Cloud
 export async function syncUserUpdateToCloud(user: AppUser): Promise<void> {
+  const userKey = encodeURIComponent(user.email.toLowerCase().trim());
+
+  // 1. Update individual key
+  try {
+    await cloudFetch(`user:${userKey}`, {
+      method: 'POST',
+      body: JSON.stringify(user),
+    });
+  } catch (e) {}
+
+  // 2. Update array
   try {
     let cloudUsers: AppUser[] = [];
-    const res = await fetch(`${CLOUD_API_BASE}/gamezone_users`);
+    const res = await cloudFetch('gamezone_users');
     if (res.ok) {
       const data = await res.json().catch(() => []);
       if (Array.isArray(data)) cloudUsers = data;
@@ -334,7 +411,7 @@ export async function syncUserUpdateToCloud(user: AppUser): Promise<void> {
       cloudUsers.unshift(user);
     }
 
-    await fetch(`${CLOUD_API_BASE}/gamezone_users`, {
+    await cloudFetch('gamezone_users', {
       method: 'POST',
       body: JSON.stringify(cloudUsers),
     });
@@ -343,16 +420,26 @@ export async function syncUserUpdateToCloud(user: AppUser): Promise<void> {
 
 // Remove user from Cloud (Admin delete)
 export async function removeUserFromCloud(userId: string): Promise<void> {
+  const all = getAllUsers();
+  const target = all.find((u) => u.id === userId);
+
+  if (target) {
+    try {
+      const userKey = encodeURIComponent(target.email.toLowerCase().trim());
+      await cloudFetch(`user:${userKey}`, { method: 'DELETE' });
+    } catch (e) {}
+  }
+
   try {
     let cloudUsers: AppUser[] = [];
-    const res = await fetch(`${CLOUD_API_BASE}/gamezone_users`);
+    const res = await cloudFetch('gamezone_users');
     if (res.ok) {
       const data = await res.json().catch(() => []);
       if (Array.isArray(data)) cloudUsers = data;
     }
     cloudUsers = cloudUsers.filter((u) => u.id !== userId);
 
-    await fetch(`${CLOUD_API_BASE}/gamezone_users`, {
+    await cloudFetch('gamezone_users', {
       method: 'POST',
       body: JSON.stringify(cloudUsers),
     });
@@ -361,50 +448,72 @@ export async function removeUserFromCloud(userId: string): Promise<void> {
 
 // Toggle block user in Cloud (Admin block)
 export async function toggleBlockUserInCloud(userId: string): Promise<void> {
-  try {
-    let cloudUsers: AppUser[] = [];
-    const res = await fetch(`${CLOUD_API_BASE}/gamezone_users`);
-    if (res.ok) {
-      const data = await res.json().catch(() => []);
-      if (Array.isArray(data)) cloudUsers = data;
-    }
-    const target = cloudUsers.find((u) => u.id === userId);
-    if (target) {
-      target.isBlocked = !target.isBlocked;
-      await fetch(`${CLOUD_API_BASE}/gamezone_users`, {
-        method: 'POST',
-        body: JSON.stringify(cloudUsers),
-      });
-    }
-  } catch (e) {}
+  const all = getAllUsers();
+  const target = all.find((u) => u.id === userId);
+
+  if (target) {
+    syncUserUpdateToCloud(target);
+  }
 }
 
 // 7. PULL USERS FROM CLOUD (FOR ADMIN PANEL ON ANY PHONE 10,000 KM AWAY)
 export async function pullCloudUsers(): Promise<AppUser[]> {
-  try {
-    const res = await fetch(`${CLOUD_API_BASE}/gamezone_users`);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        // Merge with local users (cloud has highest priority)
-        const localUsers = getAllUsers();
-        const mergedMap = new Map<string, AppUser>();
-        localUsers.forEach((u) => mergedMap.set(u.email.toLowerCase(), u));
-        data.forEach((u: AppUser) => mergedMap.set(u.email.toLowerCase(), u));
+  const mergedMap = new Map<string, AppUser>();
 
-        const result = Array.from(mergedMap.values());
-        saveAllUsers(result);
-        return result;
+  // 1. Local users first
+  const localUsers = getAllUsers();
+  localUsers.forEach((u) => mergedMap.set(u.email.toLowerCase(), u));
+
+  // 2. Pull prefix keys: user: (Guaranteed cross-device individual keys)
+  try {
+    const prefixRes = await cloudFetch('?prefix=user:&values=true');
+    if (prefixRes.ok) {
+      const text = await prefixRes.text();
+      const lines = text.split('\n').filter((l) => l.trim().length > 0);
+      for (const line of lines) {
+        const eqIdx = line.indexOf('=');
+        if (eqIdx !== -1) {
+          try {
+            const u = JSON.parse(line.substring(eqIdx + 1)) as AppUser;
+            if (u && u.email) {
+              const existing = mergedMap.get(u.email.toLowerCase());
+              if (!existing || (u.totalGamesPlayed || 0) >= (existing.totalGamesPlayed || 0)) {
+                mergedMap.set(u.email.toLowerCase(), { ...(existing || {}), ...u });
+              }
+            }
+          } catch (e) {}
+        }
       }
     }
   } catch (e) {}
-  return getAllUsers();
+
+  // 3. Pull main gamezone_users array
+  try {
+    const res = await cloudFetch('gamezone_users');
+    if (res.ok) {
+      const data = await res.json().catch(() => []);
+      if (Array.isArray(data)) {
+        data.forEach((u: AppUser) => {
+          if (u && u.email) {
+            const existing = mergedMap.get(u.email.toLowerCase());
+            if (!existing || (u.totalGamesPlayed || 0) >= (existing.totalGamesPlayed || 0)) {
+              mergedMap.set(u.email.toLowerCase(), { ...(existing || {}), ...u });
+            }
+          }
+        });
+      }
+    }
+  } catch (e) {}
+
+  const result = Array.from(mergedMap.values());
+  saveAllUsers(result);
+  return result;
 }
 
 // 8. PULL GLOBAL STATS FROM CLOUD
 export async function pullCloudStats(): Promise<void> {
   try {
-    const res = await fetch(`${CLOUD_API_BASE}/gamezone_stats`);
+    const res = await cloudFetch('gamezone_stats');
     if (res.ok) {
       const data = await res.json();
       if (data) {

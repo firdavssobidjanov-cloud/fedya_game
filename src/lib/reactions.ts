@@ -3,7 +3,7 @@
 
 import { getCurrentUser } from './auth';
 import { getStoredProfile } from './storage';
-import { sendTelegramAlert, CLOUD_API_BASE, logActivityToCloud } from './cloudSync';
+import { sendTelegramAlert, cloudFetch, logActivityToCloud } from './cloudSync';
 
 export interface ReactionRecord {
   id: string;
@@ -156,9 +156,18 @@ export function setGameReaction(
 
 // Push reaction to live Global Cloud Database
 async function syncReactionToCloud(record: ReactionRecord): Promise<void> {
+  // 1. Save individual reaction key
+  try {
+    await cloudFetch(`reaction:${record.id}`, {
+      method: 'POST',
+      body: JSON.stringify(record),
+    });
+  } catch (e) {}
+
+  // 2. Update array
   try {
     let cloudReactions: ReactionRecord[] = [];
-    const res = await fetch(`${CLOUD_API_BASE}/gamezone_reactions`);
+    const res = await cloudFetch('gamezone_reactions');
     if (res.ok) {
       const data = await res.json().catch(() => []);
       if (Array.isArray(data)) cloudReactions = data;
@@ -175,7 +184,7 @@ async function syncReactionToCloud(record: ReactionRecord): Promise<void> {
       cloudReactions = cloudReactions.slice(0, 200);
     }
 
-    await fetch(`${CLOUD_API_BASE}/gamezone_reactions`, {
+    await cloudFetch('gamezone_reactions', {
       method: 'POST',
       body: JSON.stringify(cloudReactions),
     });
@@ -184,17 +193,48 @@ async function syncReactionToCloud(record: ReactionRecord): Promise<void> {
 
 // PULL ALL REACTIONS FROM CLOUD (FOR ADMIN PANEL ON ANY DEVICE)
 export async function pullCloudReactions(): Promise<ReactionRecord[]> {
+  const reactionMap = new Map<string, ReactionRecord>();
+
+  // 1. Local first
+  getAllReactions().forEach((r) => reactionMap.set(r.id, r));
+
+  // 2. Pull prefix keys: reaction:
   try {
-    const res = await fetch(`${CLOUD_API_BASE}/gamezone_reactions`);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        saveAllReactions(data);
-        return data;
+    const prefixRes = await cloudFetch('?prefix=reaction:&values=true');
+    if (prefixRes.ok) {
+      const text = await prefixRes.text();
+      const lines = text.split('\n').filter((l) => l.trim().length > 0);
+      for (const line of lines) {
+        const eqIdx = line.indexOf('=');
+        if (eqIdx !== -1) {
+          try {
+            const rec = JSON.parse(line.substring(eqIdx + 1)) as ReactionRecord;
+            if (rec && rec.id) reactionMap.set(rec.id, rec);
+          } catch (e) {}
+        }
       }
     }
   } catch (e) {}
-  return getAllReactions();
+
+  // 3. Pull main array fallback
+  try {
+    const res = await cloudFetch('gamezone_reactions');
+    if (res.ok) {
+      const data = await res.json().catch(() => []);
+      if (Array.isArray(data)) {
+        data.forEach((r: ReactionRecord) => {
+          if (r && r.id) reactionMap.set(r.id, r);
+        });
+      }
+    }
+  } catch (e) {}
+
+  const sorted = Array.from(reactionMap.values())
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 200);
+
+  saveAllReactions(sorted);
+  return sorted;
 }
 
 // Admin Notifications count

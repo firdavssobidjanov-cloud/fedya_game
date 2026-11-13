@@ -4,7 +4,9 @@ import { GameCard } from './GameCard';
 import { FeaturedBanner } from './FeaturedBanner';
 import { FilterCategory } from './Sidebar';
 import { getLangText, Language } from '../lib/translations';
-import { Sparkles, Gamepad2 } from 'lucide-react';
+import { Sparkles, Gamepad2, ArrowRight } from 'lucide-react';
+import { AppUser } from '../lib/auth';
+import { sounds } from '../lib/sounds';
 
 interface DashboardProps {
   games: GameDefinition[];
@@ -16,6 +18,8 @@ interface DashboardProps {
   onToggleFavorite: (id: string) => void;
   onPlayGame: (id: string) => void;
   lang: Language;
+  currentUser?: AppUser | null;
+  onOpenAuthModal?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -28,6 +32,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onToggleFavorite,
   onPlayGame,
   lang,
+  currentUser,
+  onOpenAuthModal,
 }) => {
   // Filter games based on category and search query
   const filteredGames = games.filter((g) => {
@@ -56,11 +62,52 @@ export const Dashboard: React.FC<DashboardProps> = ({
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 animate-fade-in">
       {/* Featured Banner (only show when on 'all' and not searching) */}
       {currentCategory === 'all' && !searchQuery && (
-        <FeaturedBanner
-          game={featuredGame}
-          onPlayGame={onPlayGame}
-          lang={lang}
-        />
+        <>
+          <FeaturedBanner
+            game={featuredGame}
+            onPlayGame={onPlayGame}
+            lang={lang}
+          />
+
+          {/* Registration Invitation for Non-logged in visitors */}
+          {!currentUser && (
+            <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-950/80 via-slate-900/90 to-cyan-950/80 border border-purple-500/40 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5 text-center sm:text-left">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-neon-cyan">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white">
+                    {lang === 'ru'
+                      ? 'Присоединяйтесь к GAME ZONE!'
+                      : lang === 'uz'
+                      ? 'GAME ZONE platformasiga xush kelibsiz!'
+                      : 'Welcome to GAME ZONE!'}
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    {lang === 'ru'
+                      ? 'Зарегистрируйте аккаунт, чтобы сохранять свои рекорды, игры и статистику!'
+                      : lang === 'uz'
+                      ? 'O\'yinlaringiz, rekordlaringiz va natijalaringiz saqlanishi uchun ro\'yxatdan o\'ting!'
+                      : 'Create an account to save your high scores, plays and stats!'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  onOpenAuthModal?.();
+                }}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-bold text-xs shadow-neon-cyan transition-all flex items-center justify-center gap-2 shrink-0 group"
+              >
+                <span>
+                  {lang === 'ru' ? 'Регистрация / Вход' : lang === 'uz' ? 'Ro\'yxatdan o\'tish (Akkaunt ochish)' : 'Sign Up / Sign In'}
+                </span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Section Header */}

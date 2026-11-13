@@ -274,10 +274,12 @@ export const Header: React.FC<HeaderProps> = ({
               sounds.playClick();
               onOpenAuthModal();
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold text-xs shadow-neon-purple transition-all"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold text-xs shadow-neon-purple transition-all"
           >
-            <LogIn className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Kirish</span>
+            <LogIn className="w-3.5 h-3.5 shrink-0" />
+            <span className="text-[11px] sm:text-xs">
+              {lang === 'ru' ? 'Вход / Регистрация' : lang === 'uz' ? 'Kirish / Ro\'yxat' : 'Sign In'}
+            </span>
           </button>
         )}
       </div>
