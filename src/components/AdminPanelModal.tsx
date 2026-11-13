@@ -155,10 +155,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({ isOpen, onClos
       pullCloudUsers(),
       pullCloudReactions(),
       pullCloudStats(),
+      pullCloudActivity(),
       triggerGlobalCloudSync(),
     ]);
     setAnalytics(getAnalyticsSummary());
     setReactionsList(getAllReactions());
+    setActivityList(getActivityList());
     setTimeout(() => {
       setIsSyncing(false);
     }, 600);

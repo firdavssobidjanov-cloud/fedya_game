@@ -460,11 +460,26 @@ export async function toggleBlockUserInCloud(userId: string): Promise<void> {
 export async function pullCloudUsers(): Promise<AppUser[]> {
   const mergedMap = new Map<string, AppUser>();
 
-  // 1. Local users first
+  // 1. First load local users from this device
   const localUsers = getAllUsers();
-  localUsers.forEach((u) => mergedMap.set(u.email.toLowerCase(), u));
+  localUsers.forEach((u) => {
+    if (u && u.email) mergedMap.set(u.email.toLowerCase(), u);
+  });
 
-  // 2. Pull prefix keys: user: (Guaranteed cross-device individual keys)
+  // 2. Automatically sync local users to the cloud so all other devices see them
+  for (const user of localUsers) {
+    if (user && user.email && user.role !== 'admin') {
+      try {
+        const userKey = encodeURIComponent(user.email.toLowerCase().trim());
+        cloudFetch(`user:${userKey}`, {
+          method: 'POST',
+          body: JSON.stringify(user),
+        }).catch(() => {});
+      } catch (e) {}
+    }
+  }
+
+  // 3. Pull prefix keys: user: (Guaranteed cross-device individual keys)
   try {
     const prefixRes = await cloudFetch('?prefix=user:&values=true');
     if (prefixRes.ok) {
@@ -477,8 +492,15 @@ export async function pullCloudUsers(): Promise<AppUser[]> {
             const u = JSON.parse(line.substring(eqIdx + 1)) as AppUser;
             if (u && u.email) {
               const existing = mergedMap.get(u.email.toLowerCase());
-              if (!existing || (u.totalGamesPlayed || 0) >= (existing.totalGamesPlayed || 0)) {
-                mergedMap.set(u.email.toLowerCase(), { ...(existing || {}), ...u });
+              if (!existing) {
+                mergedMap.set(u.email.toLowerCase(), u);
+              } else {
+                mergedMap.set(u.email.toLowerCase(), {
+                  ...existing,
+                  ...u,
+                  totalGamesPlayed: Math.max(existing.totalGamesPlayed || 0, u.totalGamesPlayed || 0),
+                  lastLoginAt: Math.max(existing.lastLoginAt || 0, u.lastLoginAt || 0),
+                });
               }
             }
           } catch (e) {}
@@ -487,7 +509,7 @@ export async function pullCloudUsers(): Promise<AppUser[]> {
     }
   } catch (e) {}
 
-  // 3. Pull main gamezone_users array
+  // 4. Pull main gamezone_users array
   try {
     const res = await cloudFetch('gamezone_users');
     if (res.ok) {
@@ -496,8 +518,15 @@ export async function pullCloudUsers(): Promise<AppUser[]> {
         data.forEach((u: AppUser) => {
           if (u && u.email) {
             const existing = mergedMap.get(u.email.toLowerCase());
-            if (!existing || (u.totalGamesPlayed || 0) >= (existing.totalGamesPlayed || 0)) {
-              mergedMap.set(u.email.toLowerCase(), { ...(existing || {}), ...u });
+            if (!existing) {
+              mergedMap.set(u.email.toLowerCase(), u);
+            } else {
+              mergedMap.set(u.email.toLowerCase(), {
+                ...existing,
+                ...u,
+                totalGamesPlayed: Math.max(existing.totalGamesPlayed || 0, u.totalGamesPlayed || 0),
+                lastLoginAt: Math.max(existing.lastLoginAt || 0, u.lastLoginAt || 0),
+              });
             }
           }
         });
@@ -507,6 +536,18 @@ export async function pullCloudUsers(): Promise<AppUser[]> {
 
   const result = Array.from(mergedMap.values());
   saveAllUsers(result);
+
+  // 5. Update master cloud array with complete merged list
+  try {
+    const nonAdminUsers = result.filter((u) => u.role !== 'admin');
+    if (nonAdminUsers.length > 0) {
+      cloudFetch('gamezone_users', {
+        method: 'POST',
+        body: JSON.stringify(nonAdminUsers),
+      }).catch(() => {});
+    }
+  } catch (e) {}
+
   return result;
 }
 
@@ -534,6 +575,7 @@ export async function pullCloudStats(): Promise<void> {
 // 9. SUMMARY FOR ADMIN DASHBOARD
 export function getAnalyticsSummary(): AnalyticsSummary {
   const users = getAllUsers();
+  const registeredPlayers = users.filter((u) => u.role !== 'admin');
   const totalGamesPlayed = getTotalGamesPlayedCount();
   const totalUniqueVisitors = getRealVisitorsCount();
   const breakdown = getGameStatsBreakdown();
@@ -552,7 +594,7 @@ export function getAnalyticsSummary(): AnalyticsSummary {
 
   return {
     totalUniqueVisitors,
-    totalRegisteredUsers: users.length,
+    totalRegisteredUsers: registeredPlayers.length,
     totalGamesPlayed,
     topGames,
     users,

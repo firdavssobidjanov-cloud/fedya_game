@@ -14,6 +14,7 @@ export interface AppUser {
   id: string;
   username: string;
   email: string;
+  password?: string;
   role: 'admin' | 'player';
   avatarId: number;
   createdAt: number;
@@ -46,12 +47,27 @@ export function clearLegacyDummyData(): void {
 
 // Get all REAL registered users (starts empty, only real users)
 export function getAllUsers(): AppUser[] {
-  clearLegacyDummyData();
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEYS.USERS_LIST);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+
+    // Also check previous storage key just in case they were registered there
+    const legacy = localStorage.getItem('game_zone_registered_users');
+    if (legacy) {
+      const parsedLegacy = JSON.parse(legacy);
+      if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
+        // Filter out any old fake dummy bots
+        const real = parsedLegacy.filter(
+          (u: any) => u.email && !u.id?.includes('dummy') && u.email !== 'cybergamer@gamezone.uz'
+        );
+        if (real.length > 0) {
+          saveAllUsers(real);
+          return real;
+        }
+      }
     }
   } catch (e) { }
   return [];
@@ -189,7 +205,7 @@ export function loginUser(email: string, password: string): { success: boolean; 
   }
 
   const passwordsMap = getStoredPasswords();
-  const storedPass = passwordsMap[cleanEmail];
+  const storedPass = passwordsMap[cleanEmail] || user.password;
 
   if (storedPass && storedPass !== cleanPass) {
     return { success: false, error: 'Kiritilgan parol noto\'g\'ri!' };
@@ -249,6 +265,7 @@ export function registerUser(
     id: 'user-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
     username: cleanUsername,
     email: cleanEmail,
+    password: cleanPass,
     role: 'player',
     avatarId,
     createdAt: Date.now(),
